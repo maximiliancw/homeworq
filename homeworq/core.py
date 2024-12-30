@@ -363,6 +363,27 @@ class Homeworq(BaseModel):
                 logger.error(f"Main scheduler error: {str(e)}", exc_info=True)
                 await asyncio.sleep(1)
 
+    async def get_job_history(
+        self, job_uid: str, limit: int = 100
+    ) -> List[JobExecution]:
+        """
+        Get execution history for a job.
+
+        Args:
+            job_uid: ID of the job
+            limit: Maximum number of records to return
+
+        Returns:
+            List[JobExecution]: List of job execution records
+
+        Raises:
+            RuntimeError: If database is not connected
+        """
+        if not self._db:
+            raise RuntimeError("Database not connected")
+
+        return await self._db.get_job_history(job_uid, limit=limit)
+
     async def start(self):
         """
         Start both the scheduler and API server.

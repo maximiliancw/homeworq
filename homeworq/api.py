@@ -140,7 +140,7 @@ async def create_api(hq: Homeworq) -> FastAPI:
         if job is None:
             raise HTTPException(status_code=404, detail=f"Job #{job_uid} not found")
 
-        history = await app.state.hq.db.get_job_history(job_uid, limit=limit)
+        history = await app.state.hq.get_job_history(job_uid, limit=limit)
         return history
 
     # Error handler for common exceptions

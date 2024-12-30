@@ -20,6 +20,7 @@
     <header class="container">
         <nav>
             <ul>
+                <!-- Branding -->
                 <li>
                     <hgroup>
                         <h1>homeworq</h1>
@@ -28,6 +29,15 @@
                 </li>
             </ul>
             <ul>
+                <li>
+                    <!-- Mobile Menu Button -->
+                    <button class="contrast" @click="menuOpen = !menuOpen" aria-label="Toggle Menu">
+                        ☰
+                    </button>
+                </li>
+            </ul>
+            <!-- Navigation Menu -->
+            <ul :class="{ 'hidden': !menuOpen }" class="menu" x-data="{ menuOpen: false }">
                 <li><a href="/">Dashboard</a></li>
                 <li><a href="/tasks">Tasks</a></li>
                 <li><a href="/jobs">Jobs</a></li>

@@ -130,7 +130,7 @@ class Database:
 
     async def get_job_history(
         self,
-        job_name: str,
+        job_uid: str,
         limit: int = 100,
         status: Optional[Status] = None,
         since: Optional[datetime] = None,
@@ -143,9 +143,9 @@ class Database:
             query = """
                 SELECT *
                 FROM job_executions
-                WHERE job_name = ?
+                WHERE job_uid = ?
             """
-            params = [job_name]
+            params = [job_uid]
 
             if status:
                 query += " AND status = ?"
@@ -181,8 +181,7 @@ class Database:
                     # Parse timestamps
                     for field in ["started_at", "completed_at", "created_at"]:
                         if result.get(field):
-                            field = result[field]
-                            result[field] = datetime.fromisoformat(field)
+                            result[field] = datetime.fromisoformat(result[field])
 
                     results.append(result)
 

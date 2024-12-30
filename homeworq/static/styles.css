@@ -1,3 +1,11 @@
+pre {
+  padding: 1rem; /* Add horizontal and vertical padding */
+  background-color: #f4f4f4; /* Optional: for better visibility */
+  border: 1px solid #ddd; /* Optional: to create a styled box */
+  overflow: auto; /* Ensures content scrolls instead of breaking the layout */
+  box-sizing: border-box; /* Ensures padding is included in the element’s width */
+}
+
 /* Toast styles */
 .toast-container {
   position: fixed;
@@ -53,4 +61,20 @@
   color: black;
   text-decoration: none;
   cursor: pointer;
+}
+
+/* Hide the menu by default on small screens */
+.menu.hidden {
+  display: none;
+}
+
+/* Responsive behavior */
+@media (min-width: 768px) {
+  .menu {
+    display: flex !important; /* Always show menu on larger screens */
+  }
+
+  button[aria-label="Toggle Menu"] {
+    display: none; /* Hide the toggle button on larger screens */
+  }
 }

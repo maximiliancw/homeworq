@@ -1,6 +1,6 @@
 # homeworq 🏠
 
-A powerful, async-first task scheduling system with an integrated REST API and web interface. Built with Python 3.13+.
+A powerful, async-first task scheduling system with an integrated JSON API and web interface. Built with Python 3.13+.
 
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -46,6 +46,18 @@ A powerful, async-first task scheduling system with an integrated REST API and w
 
 ## Installation 🚀
 
+You can install `homeworq` via PyPI using your favorite package manager.
+
+For example:
+
+```bash
+pip install homeworq
+```
+
+## Quick Start 🎯
+
+### 1. Setup Workspace
+
 ```bash
 # Create a new project directory
 mkdir my-homeworq && cd my-homeworq
@@ -61,12 +73,11 @@ uv pip install homeworq
 
 # Initialize workspace
 hq init
-
-# Start the server
-hq run --serve
 ```
 
-## Quick Start 🎯
+### 2. Configure Workspace
+
+The `hq init` command will – among other things – create a sample file `config.py` in your workspace to get you started quickly.
 
 ```python
 from homeworq import Homeworq, models, register_task
@@ -91,15 +102,15 @@ settings = models.Settings(
     debug=True
 )
 
-# Define a job
+# Define default jobs
 jobs = [
     models.JobCreate(
         task="ping",
         params={"url": "https://example.com"},
         schedule=models.JobSchedule(
             interval=1,
-            unit=models.TimeUnit.HOURS,
-            at="14:30"  # Optional: Run at specific time
+            unit=models.TimeUnit.DAYS,
+            at="14:30"
         ),
         options=models.JobOptions(
             timeout=30,
@@ -113,7 +124,15 @@ if __name__ == "__main__":
     Homeworq.run(settings=settings, defaults=jobs)
 ```
 
-## Task Configuration 📝
+### 3. Start App
+
+- Without web service: `hq run`
+
+- With web service: `hq run --server`
+
+## Usage
+
+### Task Configuration 📝
 
 Tasks are registered using the `@register_task` decorator:
 
@@ -125,9 +144,11 @@ async def process_data(input_path: str, batch_size: int = 1000) -> Dict[str, Any
     ...
 ```
 
-## Job Configuration ⚙️
+The `title` can be arbitrary, since it's sole purpose to be displayed in the UI.
 
-### Scheduling Options
+### Job Configuration ⚙️
+
+#### Scheduling Options
 
 Available time units:
 
@@ -149,7 +170,7 @@ schedule = models.JobSchedule(
 )
 ```
 
-### Job Options
+#### Job Options
 
 ```python
 options = models.JobOptions(
@@ -160,18 +181,28 @@ options = models.JobOptions(
 )
 ```
 
-## Web Interface 🌐
+### Web Interface 🌐
 
-When enabled, Homeworq provides a web interface at `http://localhost:8000` with:
+When enabled via the `api_on=True` setting, Homeworq provides a web interface at `http://localhost:8000` with:
 
 - Dashboard overview
 - Task registry browser
 - Job management interface
 - Execution history viewer
 
-## API Endpoints 🛣️
+The application is based on FastAPI as well as Alpine.js, and runs using `uvicorn`. You can configure the ASGI application using the following setting parameters:
 
-The REST API provides these endpoints:
+```python
+settings = Settings(
+    api_on=True,
+    api_host="example.com"
+    api_port="3000"
+)
+```
+
+### API Endpoints 🤖
+
+The JSON API provides these endpoints:
 
 - `GET /api/health` - System health check
 - `GET /api/tasks` - List all tasks
@@ -179,6 +210,7 @@ The REST API provides these endpoints:
 - `GET /api/jobs` - List all jobs
 - `GET /api/jobs/{job_uid}` - Get job details
 - `GET /api/jobs/{job_uid}/history` - Get job execution history
+- `GET /api/results` - Get all job executions / results
 
 ## Development 🛠️
 

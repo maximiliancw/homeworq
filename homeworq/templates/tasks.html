@@ -12,9 +12,9 @@
 <div x-data="taskList()" aria-label="Available Tasks">
     <template x-for="[name, task] in Object.entries(filteredTasks)" :key="name">
         <details :id="'task-' + name">
-            <summary><kbd x-text="name"></kbd></summary>
+            <summary><kbd x-text="name"></kbd><span x-text="task.title" style="margin-left: 30px"></span></summary>
             <div class="card-content">
-                <p x-text="task.description || 'No description available'"></p>
+                <pre x-text="task.description || 'No description available'"></pre>
             </div>
         </details>
     </template>

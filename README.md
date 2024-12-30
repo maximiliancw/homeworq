@@ -1,36 +1,80 @@
-# Homeworq 🏠
+# homeworq 🏠
 
 A powerful, async-first task scheduling system with an integrated REST API and web interface. Built with Python 3.13+.
 
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Features ✨
 
-- **Task Scheduling**: Flexible scheduling with interval and time-based triggers
-- **REST API & Web Interface**: Built-in FastAPI server for task/job management
-- **Result Storage**: SQLite-based storage for job execution history
-- **Retry Logic**: Configurable retry attempts with exponential backoff
-- **Async First**: Built on Python's asyncio for maximum performance
-- **Web Dashboard**: Monitor jobs, tasks, and execution results
-- **Developer Friendly**: Simple API for task registration and job creation
+- **Task Scheduling**
+
+  - Super simple task and schedule definition
+  - Interval-based scheduling with flexible time units
+  - Optional time-of-day execution control
+
+- **Async Engine**
+
+  - Built on Python's asyncio for high performance
+  - Automatic retry with exponential backoff
+  - Configurable timeouts
+  - Concurrent job execution
+
+- **JSON API**
+
+  - Built on the popular [FastAPI](https://fastapi.tiangolo.com) framework
+  - Extensive and interactive API documentation using the OpenAPI standard
+
+- **Web Interface**
+
+  - Real-time dashboard
+  - Job and task overview
+  - Execution history viewer
+  - System health monitoring
+
+- **Result Storage**
+  - SQLite-based execution history
+  - Efficient WAL mode for better concurrency
+  - Automatic schema management
+
+## Requirements 📋
+
+- Python 3.13 or higher
+- SQLite 3.35+ (included with Python)
+- Great ideas to give your machine some _homeworq_ 🤓
 
 ## Installation 🚀
 
 ```bash
-pip install homeworq
+# Create a new project directory
+mkdir my-homeworq && cd my-homeworq
+
+# Create and activate virtual environment
+uv venv
+source .venv/bin/activate  # Linux/macOS
+# or
+.venv\Scripts\activate  # Windows
+
+# Install homeworq
+uv pip install homeworq
+
+# Initialize workspace
+hq init
+
+# Start the server
+hq run --serve
 ```
 
 ## Quick Start 🎯
 
-Here's a minimal example to get you started:
-
 ```python
 from homeworq import Homeworq, models, register_task
+from typing import Dict, Any
 
 # Define a task
 @register_task(title="Website Health Check")
-async def ping(url: str):
+async def ping(url: str) -> Dict[str, Any]:
     """Ping a website and return its status."""
     import urllib.request
     with urllib.request.urlopen(url) as response:
@@ -43,7 +87,8 @@ async def ping(url: str):
 settings = models.Settings(
     api_on=True,  # Enable web interface
     api_host="localhost",
-    api_port=8000
+    api_port=8000,
+    debug=True
 )
 
 # Define a job
@@ -53,7 +98,8 @@ jobs = [
         params={"url": "https://example.com"},
         schedule=models.JobSchedule(
             interval=1,
-            unit=models.TimeUnit.HOURS
+            unit=models.TimeUnit.HOURS,
+            at="14:30"  # Optional: Run at specific time
         ),
         options=models.JobOptions(
             timeout=30,
@@ -67,19 +113,21 @@ if __name__ == "__main__":
     Homeworq.run(settings=settings, defaults=jobs)
 ```
 
-## Task Scheduling 📅
+## Task Configuration 📝
 
-Homeworq supports two types of scheduling:
-
-### Interval-based Scheduling
+Tasks are registered using the `@register_task` decorator:
 
 ```python
-schedule = models.JobSchedule(
-    interval=1,  # Run every...
-    unit=models.TimeUnit.HOURS,  # hour
-    at="14:30"  # Optional: Run at specific time
-)
+@register_task(title="Data Processing")
+async def process_data(input_path: str, batch_size: int = 1000) -> Dict[str, Any]:
+    """Process data in batches."""
+    # Task implementation
+    ...
 ```
+
+## Job Configuration ⚙️
+
+### Scheduling Options
 
 Available time units:
 
@@ -91,15 +139,17 @@ Available time units:
 - `MONTHS`
 - `YEARS`
 
-### Cron-like Scheduling
+Time-based execution is supported for daily and weekly intervals:
 
 ```python
-schedule = "*/15 * * * *"  # Run every 15 minutes
+schedule = models.JobSchedule(
+    interval=1,
+    unit=models.TimeUnit.DAYS,
+    at="14:30"  # Run at 2:30 PM
+)
 ```
 
-## Job Configuration ⚙️
-
-Jobs can be configured with various options:
+### Job Options
 
 ```python
 options = models.JobOptions(
@@ -107,13 +157,6 @@ options = models.JobOptions(
     max_retries=3,  # Retry up to 3 times
     start_date=datetime(2024, 1, 1),  # Start date
     end_date=datetime(2024, 12, 31),  # End date
-    dependencies=[  # Job dependencies
-        models.JobDependency(
-            job_name="other_job",
-            required_status=models.Status.COMPLETED,
-            within_hours=24
-        )
-    ]
 )
 ```
 
@@ -122,10 +165,9 @@ options = models.JobOptions(
 When enabled, Homeworq provides a web interface at `http://localhost:8000` with:
 
 - Dashboard overview
-- Task registry
-- Job management
-- Execution history
-- Health monitoring
+- Task registry browser
+- Job management interface
+- Execution history viewer
 
 ## API Endpoints 🛣️
 
@@ -135,34 +177,24 @@ The REST API provides these endpoints:
 - `GET /api/tasks` - List all tasks
 - `GET /api/tasks/{task_name}` - Get task details
 - `GET /api/jobs` - List all jobs
-- `GET /api/jobs/{job_name}` - Get job details
-- `GET /api/jobs/{job_name}/history` - Get job execution history
+- `GET /api/jobs/{job_uid}` - Get job details
+- `GET /api/jobs/{job_uid}/history` - Get job execution history
 
 ## Development 🛠️
-
-Setup your development environment:
 
 ```bash
 # Clone the repository
 git clone https://github.com/maximiliancw/homeworq.git
 cd homeworq
 
-# Create a virtual environment
-uv install
+# Install dependencies
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
 
 # Run tests
 pytest
 ```
-
-## Contributing 🤝
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## License 📄
 

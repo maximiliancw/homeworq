@@ -63,7 +63,7 @@ if __name__ == "__main__":
             params={"url": "https://example.com"},
             schedule=models.JobSchedule(
                 interval=1,
-                unit=models.TimeUnit.HOURS,
+                unit=models.TimeUnit.MINUTES,
             ),
             options=models.JobOptions(
                 timeout=30,  # 30 second timeout
@@ -79,8 +79,7 @@ if __name__ == "__main__":
             },
             schedule=models.JobSchedule(
                 interval=1,
-                unit=models.TimeUnit.DAYS,
-                at="02:00",  # Run at 2 AM
+                unit=models.TimeUnit.MINUTES,
             ),
             options=models.JobOptions(
                 timeout=3600,  # 1 hour timeout

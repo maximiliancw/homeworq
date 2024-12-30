@@ -5,10 +5,12 @@ from typing import Dict, List
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .core import Homeworq
 from .models import Job, JobExecution, Task
+from .tasks import REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,17 @@ async def create_api(hq: Homeworq) -> FastAPI:
         allow_credentials=False,  # No credentials needed for read-only API
         allow_methods=["GET"],  # Only allow GET requests
         allow_headers=["*"],
+    )
+
+    app.mount(
+        "/static",
+        app=StaticFiles(
+            directory=os.path.join(
+                os.path.dirname(__file__),
+                "static",
+            )
+        ),
+        name="static",
     )
 
     templates = Jinja2Templates(
@@ -85,40 +98,49 @@ async def create_api(hq: Homeworq) -> FastAPI:
     @app.get("/api/tasks", response_model=Dict[str, Task])
     async def list_tasks():
         """List all available tasks and their descriptions"""
-        return app.state.hq.tasks
+        return {
+            k: {"name": k, "title": v.title, "description": v.description}
+            for k, v in REGISTRY.items()
+        }
 
     # Get task details
     @app.get("/api/tasks/{task_name}", response_model=Task)
     async def get_task(task_name: str):
         """Get details for a specific task"""
-        tasks = app.state.hq.tasks
-        if task_name not in tasks:
+        if task_name not in REGISTRY:
             raise HTTPException(status_code=404, detail=f"Task {task_name} not found")
-        return tasks[task_name]
+
+        task = REGISTRY[task_name]
+        return {
+            "name": task_name,
+            "title": task.title,
+            "description": task.description,
+        }
 
     # List all jobs
-    @app.get("/api/jobs", response_model=Dict[str, Job])
+    @app.get("/api/jobs", response_model=List[Job])
     async def list_jobs():
         """List all configured jobs"""
         return app.state.hq.jobs
 
     # Get job details
-    @app.get("/api/jobs/{job_name}", response_model=Job)
-    async def get_job(job_name: str):
+    @app.get("/api/jobs/{job_uid}", response_model=Job)
+    async def get_job(job_uid: str):
         """Get details for a specific job"""
-        jobs = app.state.hq.jobs
-        if job_name not in jobs:
-            raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
-        return jobs[job_name]
+        job = next((j for j in app.state.hq.jobs if j.uid == job_uid), None)
+        if job is None:
+            raise HTTPException(status_code=404, detail=f"Job #{job_uid} not found")
+        return job
 
     # Get job execution history
-    @app.get("/api/jobs/{job_name}/history", response_model=List[JobExecution])
-    async def get_job_history(job_name: str, limit: int = 100):
+    @app.get("/api/jobs/{job_uid}/history", response_model=List[JobExecution])
+    async def get_job_history(job_uid: str, limit: int = 100):
         """Get execution history for a specific job"""
-        if job_name not in app.state.hq.jobs:
-            raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
+        job = next((j for j in app.state.hq.jobs if j.uid == job_uid), None)
+        if job is None:
+            raise HTTPException(status_code=404, detail=f"Job #{job_uid} not found")
 
-        history = await app.state.hq.db.get_job_history(job_name, limit=limit)
+        history = await app.state.hq.db.get_job_history(job_uid, limit=limit)
         return history
 
     # Error handler for common exceptions

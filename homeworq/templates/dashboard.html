@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<section x-data="dashboard()" class="container">
+    <!-- Summary Metrics -->
+    <div class="grid">
+        <article>
+            <header>
+                <h3>Tasks</h3>
+                <p x-text="metrics.totalTasks || '-'"></p>
+            </header>
+            <div class="progress-details">
+                <div>Active: <span x-text="metrics.activeTasks || '-'"></span></div>
+                <div>Scheduled: <span x-text="metrics.scheduledTasks || '-'"></span></div>
+            </div>
+            <small>Last updated <span x-text="timeAgo(metrics.lastUpdate)"></span></small>
+        </article>
+        <!-- Similar structure for Jobs, System Health, Success Rate -->
+        <!-- ... other metric articles following same pattern ... -->
+    </div>
+
+    <!-- Recent Activity & Next Executions -->
+    <div class="grid">
+        <article>
+            <header>
+                <h3>Recent Activity</h3>
+            </header>
+            <div class="activity-feed">
+                <template x-for="exec in recentActivity" :key="exec.started_at">
+                    <div class="activity-item">
+                        <span x-text="getStatusEmoji(exec.status)"></span>
+                        <span><strong x-text="exec.job.name"></strong></span>
+                        <span x-text="timeAgo(new Date(exec.started_at))"></span>
+                        <span x-if="exec.duration" x-text="formatDuration(exec.duration)"></span>
+                    </div>
+                </template>
+            </div>
+        </article>
+        <article>
+            <header>
+                <h3>Upcoming Executions</h3>
+            </header>
+            <div class="upcoming-list">
+                <template x-for="job in upcomingExecutions" :key="job.next_run">
+                    <div class="upcoming-item">
+                        <span><strong x-text="job.name"></strong></span>
+                        <span x-text="new Date(job.next_run).toLocaleString()"></span>
+                    </div>
+                </template>
+            </div>
+        </article>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid">
+        <article>
+            <header>
+                <h3>Execution History</h3>
+            </header>
+            <div class="chart-container">
+                <canvas id="executionHistoryChart"></canvas>
+            </div>
+        </article>
+        <article>
+            <header>
+                <h3>Task Distribution</h3>
+            </header>
+            <div class="chart-container">
+                <canvas id="taskDistributionChart"></canvas>
+            </div>
+        </article>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function dashboard() {
+        return {
+            metrics: {
+                totalTasks: 0,
+                activeTasks: 0,
+                scheduledTasks: 0,
+                lastUpdate: new Date()
+            },
+            recentActivity: [],
+            upcomingExecutions: [],
+            charts: {
+                executionHistory: null,
+                taskDistribution: null
+            },
+
+            async init() {
+                await this.fetchDashboardData();
+                setInterval(() => this.fetchDashboardData(), 30000);
+            },
+
+            async fetchDashboardData() {
+                try {
+                    const [health, tasks, jobs, executions] = await Promise.all([
+                        fetch('/health').then(r => r.json()),
+                        fetch('/api/tasks').then(r => r.json()),
+                        fetch('/api/jobs').then(r => r.json()),
+                        this.fetchExecutions()
+                    ]);
+
+                    this.updateMetrics(health, tasks, jobs, executions);
+                    this.updateActivityFeed(executions);
+                    this.updateUpcomingExecutions(jobs);
+                    this.updateCharts(executions);
+
+                } catch (error) {
+                    console.error('Error fetching dashboard data:', error);
+                    showToast('Error updating dashboard', 'error');
+                }
+            },
+
+            // ... rest of your existing dashboard functions, modified to use this. ...
+            // The logic remains largely the same, just adapted to use Alpine's reactivity
+        }
+    }
+</script>
+{% endblock %}

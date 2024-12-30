@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Results{% endblock %}
+
+{% block content %}
+<div x-data="resultsTable()" class="table-container">
+    <table id="resultsTable" aria-describedby="Job Execution Results">
+        <thead>
+            <tr>
+                <th>Job</th>
+                <th>Started At</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <!-- Modal is already in base.html, we'll just use it -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function resultsTable() {
+        return {
+            table: null,
+
+            async init() {
+                // Initialize DataTable
+                this.table = $('#resultsTable').DataTable({
+                    ajax: {
+                        url: '',
+                        dataSrc: this.fetchJobExecutions
+                    },
+                    order: [[1, 'desc']],
+                    columns: [
+                        {
+                            data: "job.name",
+                            render: data => `<kbd>${data}</kbd>`
+                        },
+                        {
+                            data: "started_at",
+                            render: data => new Date(data).toLocaleString()
+                        },
+                        {
+                            data: "duration",
+                            render: data => data ? `${data.toFixed(2)}s` : '-'
+                        },
+                        {
+                            data: "status",
+                            render: data => `${this.getStatusEmoji(data)} ${data}`
+                        },
+                        {
+                            data: null,
+                            render: (_, __, row) => {
+                                const details = row.error || JSON.stringify(row.result, null, 2) || '-';
+                                return `<button class="button button-small" onclick='showModal("Execution Details", ${JSON.stringify(details)})'>Details</button>`;
+                            }
+                        }
+                    ]
+                });
+
+                // Refresh data periodically
+                setInterval(() => this.table.ajax.reload(null, false), 30000);
+            },
+
+            async fetchJobExecutions() {
+                const jobs = await fetch('/api/jobs').then(r => r.json());
+                const executions = await Promise.all(
+                    Object.keys(jobs).map(async jobName => {
+                        const history = await fetch(`/api/jobs/${jobName}/history?limit=100`).then(r => r.json());
+                        return history;
+                    })
+                );
+                return executions.flat();
+            },
+
+            getStatusEmoji(status) {
+                const emojis = {
+                    'pending': '⏳',
+                    'running': '🔄',
+                    'completed': '✅',
+                    'failed': '❌'
+                };
+                return emojis[status] || '❔';
+            }
+        }
+    }
+</script>
+{% endblock %}

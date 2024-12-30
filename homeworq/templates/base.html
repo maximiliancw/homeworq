@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>homeworq</title>
+    <link rel="stylesheet" type="text/css" href="static/styles.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+    <script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="text/javascript" charset="utf8"
+        src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
+
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li>
+                    <hgroup>
+                        <h1>homeworq</h1>
+                        <p>Task scheduling for homeservers</p>
+                    </hgroup>
+                </li>
+            </ul>
+            <ul>
+                <li><a href="/">Dashboard</a></li>
+                <li><a href="/tasks">Tasks</a></li>
+                <li><a href="/jobs">Jobs</a></li>
+                <li><a href="/results">Results</a></li>
+            </ul>
+        </nav>
+    </header>
+    <!-- ./ Header -->
+
+    <!-- Main -->
+    <main class="container">
+        <section>
+            <header class="grid">
+                <h2>{% block title %}{% endblock %}</h2>
+                {% block page_menu %}{% endblock %}
+            </header>
+        </section>
+        <section>
+            {% block content %}{% endblock %}
+        </section>
+    </main>
+    <!-- ./ Main -->
+
+    <!-- Loader -->
+    <div id="loader" class="loader" aria-hidden="true"></div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+    <!-- Modal -->
+    <dialog id="modal" class="modal" role="dialog" aria-modal="true">
+        <article>
+            <header>
+                <button class="close" aria-label="Close" onclick="closeModal()"></button>
+                <h2 class="modal-title"></h2>
+            </header>
+            <pre class="modal-body" aria-live="polite"></pre>
+        </article>
+    </dialog>
+
+    <!-- Scripts -->
+    <script type="text/javascript" charset="utf8" src="static/scripts.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

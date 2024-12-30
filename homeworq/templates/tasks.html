@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks{% endblock %}
+
+{% block page_menu %}
+<div>
+    <input type="search" x-model="searchQuery" placeholder="Search tasks..." aria-label="Search tasks">
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="taskList()" aria-label="Available Tasks">
+    <template x-for="[name, task] in Object.entries(filteredTasks)" :key="name">
+        <details :id="'task-' + name">
+            <summary><kbd x-text="name"></kbd></summary>
+            <div class="card-content">
+                <p x-text="task.description || 'No description available'"></p>
+            </div>
+        </details>
+    </template>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function taskList() {
+        return {
+            tasks: {},
+            searchQuery: '',
+
+            get filteredTasks() {
+                const query = this.searchQuery.toLowerCase();
+                return Object.entries(this.tasks)
+                    .filter(([name, task]) =>
+                        name.toLowerCase().includes(query) ||
+                        (task.description && task.description.toLowerCase().includes(query))
+                    )
+                    .reduce((obj, [key, value]) => {
+                        obj[key] = value;
+                        return obj;
+                    }, {});
+            },
+
+            async init() {
+                const response = await fetch("/api/tasks");
+                this.tasks = await response.json();
+            }
+        }
+    }
+</script>
+{% endblock %}

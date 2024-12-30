@@ -77,6 +77,37 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    function timeAgo(date) {
+        const now = new Date();
+        const seconds = Math.floor((now - new Date(date)) / 1000);
+
+        const intervals = {
+            year: 31536000,
+            month: 2592000,
+            week: 604800,
+            day: 86400,
+            hour: 3600,
+            minute: 60,
+            second: 1
+        };
+
+        for (const [unit, secondsInUnit] of Object.entries(intervals)) {
+            const interval = Math.floor(seconds / secondsInUnit);
+            if (interval >= 1) {
+                return `${interval} ${unit}${interval === 1 ? '' : 's'} ago`;
+            }
+        }
+        return 'just now';
+    }
+
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.getElementById('toastContainer').appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
     function dashboard() {
         return {
             metrics: {
@@ -92,6 +123,149 @@
                 taskDistribution: null
             },
 
+            async fetchExecutions() {
+                // Fetch recent executions for all jobs
+                const jobs = await fetch('/api/jobs').then(r => r.json());
+                const executions = await Promise.all(
+                    jobs.map(job =>
+                        fetch(`/api/jobs/${job.uid}/history?limit=10`)
+                            .then(r => r.json())
+                    )
+                );
+                return executions.flat().sort((a, b) =>
+                    new Date(b.started_at) - new Date(a.started_at)
+                );
+            },
+
+            getStatusEmoji(status) {
+                const emojis = {
+                    'COMPLETED': '✅',
+                    'FAILED': '❌',
+                    'RUNNING': '⏳',
+                    'PENDING': '⏰'
+                };
+                return emojis[status] || '❔';
+            },
+
+            formatDuration(seconds) {
+                if (seconds < 60) return `${seconds.toFixed(1)}s`;
+                const minutes = Math.floor(seconds / 60);
+                seconds = Math.round(seconds % 60);
+                return `${minutes}m ${seconds}s`;
+            },
+
+            async updateMetrics(health, tasks, jobs, executions) {
+                this.metrics = {
+                    totalTasks: Object.keys(tasks).length,
+                    activeTasks: jobs.filter(j => j.enabled).length,
+                    scheduledTasks: jobs.length,
+                    lastUpdate: new Date()
+                };
+            },
+
+            updateActivityFeed(executions) {
+                this.recentActivity = executions.slice(0, 10);
+            },
+
+            updateUpcomingExecutions(jobs) {
+                this.upcomingExecutions = jobs
+                    .filter(job => job.enabled)
+                    .map(job => ({
+                        name: job.name,
+                        next_run: this.calculateNextRun(job)
+                    }))
+                    .sort((a, b) => new Date(a.next_run) - new Date(b.next_run))
+                    .slice(0, 5);
+            },
+
+            calculateNextRun(job) {
+                // Simple calculation for demo - you'll want to implement proper schedule calculation
+                const now = new Date();
+                return new Date(now.getTime() + (job.schedule.interval * 1000));
+            },
+
+            updateCharts(executions) {
+                this.updateExecutionHistoryChart(executions);
+                this.updateTaskDistributionChart(executions);
+            },
+
+            updateExecutionHistoryChart(executions) {
+                const ctx = document.getElementById('executionHistoryChart');
+                if (!ctx) return;
+
+                if (this.charts.executionHistory) {
+                    this.charts.executionHistory.destroy();
+                }
+
+                // Group executions by day and status
+                const grouped = executions.reduce((acc, exec) => {
+                    const date = new Date(exec.started_at).toLocaleDateString();
+                    if (!acc[date]) acc[date] = { COMPLETED: 0, FAILED: 0 };
+                    acc[date][exec.status]++;
+                    return acc;
+                }, {});
+
+                this.charts.executionHistory = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(grouped),
+                        datasets: [{
+                            label: 'Successful',
+                            data: Object.values(grouped).map(d => d.COMPLETED),
+                            backgroundColor: '#2ecc71'
+                        }, {
+                            label: 'Failed',
+                            data: Object.values(grouped).map(d => d.FAILED),
+                            backgroundColor: '#e74c3c'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                stacked: true
+                            },
+                            x: {
+                                stacked: true
+                            }
+                        }
+                    }
+                });
+            },
+
+            updateTaskDistributionChart(executions) {
+                const ctx = document.getElementById('taskDistributionChart');
+                if (!ctx) return;
+
+                if (this.charts.taskDistribution) {
+                    this.charts.taskDistribution.destroy();
+                }
+
+                // Group executions by task
+                const grouped = executions.reduce((acc, exec) => {
+                    const task = exec.job.task.name;
+                    acc[task] = (acc[task] || 0) + 1;
+                    return acc;
+                }, {});
+
+                this.charts.taskDistribution = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(grouped),
+                        datasets: [{
+                            data: Object.values(grouped),
+                            backgroundColor: [
+                                '#2ecc71', '#3498db', '#9b59b6', '#f1c40f', '#e74c3c'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true
+                    }
+                });
+            },
+
             async init() {
                 await this.fetchDashboardData();
                 setInterval(() => this.fetchDashboardData(), 30000);
@@ -100,7 +274,7 @@
             async fetchDashboardData() {
                 try {
                     const [health, tasks, jobs, executions] = await Promise.all([
-                        fetch('/health').then(r => r.json()),
+                        fetch('/api/health').then(r => r.json()),
                         fetch('/api/tasks').then(r => r.json()),
                         fetch('/api/jobs').then(r => r.json()),
                         this.fetchExecutions()
@@ -115,10 +289,7 @@
                     console.error('Error fetching dashboard data:', error);
                     showToast('Error updating dashboard', 'error');
                 }
-            },
-
-            // ... rest of your existing dashboard functions, modified to use this. ...
-            // The logic remains largely the same, just adapted to use Alpine's reactivity
+            }
         }
     }
 </script>

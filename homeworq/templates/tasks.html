@@ -8,17 +8,19 @@
 {% endblock %}
 
 {% block content %}
-<div x-data="taskList()" aria-label="Available Tasks">
+<div x-data="taskList()" x-init="init()" aria-label="Available Tasks">
     <template x-for="task in filteredTasks" :key="task.name">
-        <details :id="'task-' + task.name">
-            <summary>
-                <kbd x-text="task.name"></kbd>
-                <span x-text="task.title" class="ml-8"></span>
-            </summary>
-            <div class="card-content">
+        <section :id="'task-' + task.name" class="task-section" style="margin-top: 5rem;">
+            <header style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 x-text="task.title || task.name"></h3>
+                <div>
+                    <kbd x-text="task.name"></kbd>
+                </div>
+            </header>
+            <div style="margin-top: 1rem;">
                 <pre x-text="task.description || 'No description available'"></pre>
             </div>
-        </details>
+        </section>
     </template>
 </div>
 
@@ -32,25 +34,16 @@
                 const query = this.searchQuery.toLowerCase();
                 return this.tasks.filter(task =>
                     task.name.toLowerCase().includes(query) ||
-                    task.description?.toLowerCase().includes(query) ||
-                    task.title?.toLowerCase().includes(query)
+                    (task.description && task.description.toLowerCase().includes(query)) ||
+                    (task.title && task.title.toLowerCase().includes(query))
                 );
             },
 
             async init() {
-                try {
-                    const response = await fetch("/api/tasks");
-                    const data = await response.json();
-                    this.tasks = Object.entries(data).map(([name, task]) => ({
-                        ...task,
-                        name: name
-                    }));
-                } catch (error) {
-                    console.error('Error fetching tasks:', error);
-                    showToast('Error loading tasks', 'error');
-                }
+                const response = await fetch('/api/tasks');
+                this.tasks = await response.json();
             }
-        }
+        };
     }
 </script>
 {% endblock %}

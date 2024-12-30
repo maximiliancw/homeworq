@@ -95,19 +95,23 @@ async def create_api(hq: Homeworq) -> FastAPI:
         }
 
     # List all tasks
-    @app.get("/api/tasks", response_model=Dict[str, Task])
+    @app.get("/api/tasks", response_model=List[Task])
     async def list_tasks():
         """List all available tasks and their descriptions"""
-        return {
-            k: {"name": k, "title": v.title, "description": v.description}
+        return [
+            {"name": k, "title": v.title, "description": v.description}
             for k, v in REGISTRY.items()
-        }
+        ]
 
     # List all results
     @app.get("/api/results", response_model=List[JobExecution])
     async def list_results():
         """List all available job executions and their results"""
-        return [result for job in app.state.hq.jobs for result in job.history]
+        all_results = []
+        for job in app.state.hq.jobs:
+            results = await app.state.hq.get_job_history(job.uid)
+            all_results.extend(results)
+        return all_results
 
     # Get task details
     @app.get("/api/tasks/{task_name}", response_model=Task)

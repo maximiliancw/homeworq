@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-
 {% block title %}Results{% endblock %}
 
 {% block content %}
 <div x-data="resultsTable()" class="table-container">
-    <table id="resultsTable" aria-describedby="Job Execution Results">
+    <table id="resultsTable" aria-label="Job Execution Results">
         <thead>
             <tr>
                 <th>Job</th>
+                <th>Task</th>
                 <th>Started At</th>
                 <th>Duration</th>
                 <th>Status</th>
@@ -16,30 +16,25 @@
         </thead>
         <tbody></tbody>
     </table>
-
-    <!-- Modal is already in base.html, we'll just use it -->
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
     function resultsTable() {
         return {
             table: null,
 
             async init() {
-                // Initialize DataTable
                 this.table = $('#resultsTable').DataTable({
                     ajax: {
-                        url: '',
-                        dataSrc: this.fetchJobExecutions
+                        url: "/api/results",
+                        dataSrc: ''
                     },
-                    order: [[1, 'desc']],
                     columns: [
                         {
-                            data: "job.name",
-                            render: data => `<kbd>${data}</kbd>`
+                            data: "job.uid",
+                            render: (data, type, row) => `<kbd>${data}</kbd>`
                         },
+                        { data: "job.task.name" },
                         {
                             data: "started_at",
                             render: data => new Date(data).toLocaleString()
@@ -54,37 +49,30 @@
                         },
                         {
                             data: null,
-                            render: (_, __, row) => {
+                            render: (data, type, row) => {
                                 const details = row.error || JSON.stringify(row.result, null, 2) || '-';
-                                return `<button class="button button-small" onclick='showModal("Execution Details", ${JSON.stringify(details)})'>Details</button>`;
+                                return `<button class="button button-small" @click="showDetails('${row.job.uid}', ${JSON.stringify(details)})">Details</button>`;
                             }
                         }
-                    ]
+                    ],
+                    order: [[2, 'desc']]
                 });
 
                 // Refresh data periodically
                 setInterval(() => this.table.ajax.reload(null, false), 30000);
             },
 
-            async fetchJobExecutions() {
-                const jobs = await fetch('/api/jobs').then(r => r.json());
-                const executions = await Promise.all(
-                    Object.keys(jobs).map(async jobName => {
-                        const history = await fetch(`/api/jobs/${jobName}/history?limit=100`).then(r => r.json());
-                        return history;
-                    })
-                );
-                return executions.flat();
+            showDetails(jobUid, details) {
+                showModal(`Execution Details: ${jobUid}`, details);
             },
 
             getStatusEmoji(status) {
-                const emojis = {
-                    'pending': '⏳',
-                    'running': '🔄',
-                    'completed': '✅',
-                    'failed': '❌'
-                };
-                return emojis[status] || '❔';
+                return {
+                    'COMPLETED': '✅',
+                    'FAILED': '❌',
+                    'RUNNING': '⏳',
+                    'PENDING': '⏰'
+                }[status] || '❔';
             }
         }
     }

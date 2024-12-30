@@ -6,35 +6,23 @@
     <!-- Summary Metrics -->
     <div class="grid">
         <article>
-            <header>
-                <h3>Tasks</h3>
-                <p x-text="metrics.totalTasks || '-'"></p>
-            </header>
-            <small>Last updated <span x-text="timeAgo(metrics.lastUpdate)"></span></small>
+            <h3>Tasks</h3>
+            <p x-text="metrics.totalTasks || '-'"></p>
         </article>
         <article>
-            <header>
-                <h3>Jobs</h3>
-                <p x-text="metrics.activeTasks || '-'"></p>
-            </header>
-            <small>Last updated <span x-text="timeAgo(metrics.lastUpdate)"></span></small>
+            <h3>Jobs</h3>
+            <p x-text="metrics.activeJobs || '-'"></p>
         </article>
         <article>
-            <header>
-                <h3>Executions</h3>
-                <p x-text="metrics.scheduledTasks || '-'"></p>
-            </header>
-            <small>Last updated <span x-text="timeAgo(metrics.lastUpdate)"></span></small>
+            <h3>Executions</h3>
+            <p x-text="metrics.totalExecutions || '-'"></p>
         </article>
         <article>
-            <header>
-                <h3>System</h3>
-                <p>
-                    <kbd x-bind:class="health.status === 'healthy' ? 'success' : 'error'"
-                        x-text="health.status">healthy</kbd>
-                </p>
-            </header>
-            <small>Last updated <span x-text="timeAgo(metrics.lastUpdate)"></span></small>
+            <h3>System</h3>
+            <p>
+                <kbd x-bind:class="health.status === 'healthy' ? 'success' : 'error'"
+                    x-text="health.status">unknown</kbd>
+            </p>
         </article>
     </div>
 
@@ -53,7 +41,7 @@
                         <span x-text="getStatusEmoji(exec.status)"></span>
                         <span><strong x-text="exec.job.task.name"></strong></span>
                         <span x-text="timeAgo(exec.started_at)"></span>
-                        <span x-show="exec.duration" x-text="formatDuration(exec.duration)"></span>
+                        <span x-show="exec.duration !== null" x-text="formatDuration(exec.duration)"></span>
                     </div>
                 </template>
             </div>
@@ -66,9 +54,9 @@
                 <template x-if="upcomingExecutions.length === 0">
                     <p class="text-muted">No upcoming executions</p>
                 </template>
-                <template x-for="job in upcomingExecutions" :key="job.next_run">
+                <template x-for="job in upcomingExecutions" :key="job.uid">
                     <div class="upcoming-item">
-                        <span><strong x-text="job.name"></strong></span>
+                        <span><strong x-text="job.task.name"></strong></span>
                         <span x-text="formatNextRun(job.next_run)"></span>
                     </div>
                 </template>
@@ -111,12 +99,13 @@
         return {
             metrics: {
                 totalTasks: 0,
-                activeTasks: 0,
-                scheduledTasks: 0,
+                activeJobs: 0,
+                totalExecutions: 0,
                 lastUpdate: new Date()
             },
             health: {
-                status: 'unknown'
+                status: 'unknown',
+                lastCheck: new Date()
             },
             recentActivity: [],
             upcomingExecutions: [],
@@ -129,98 +118,28 @@
 
             timeAgo(date) {
                 if (!date) return 'never';
+                const now = new Date();
+                const parsedDate = new Date(date);
+                if (isNaN(parsedDate.getTime())) return 'invalid date';
 
-                try {
-                    const now = new Date();
-                    const parsedDate = new Date(date);
-
-                    // Check for invalid dates
-                    if (isNaN(parsedDate.getTime())) {
-                        return 'invalid date';
-                    }
-
-                    // Handle future dates
-                    if (parsedDate > now) {
-                        return 'in the future';
-                    }
-
-                    const seconds = Math.floor((now - parsedDate) / 1000);
-
-                    // Define time intervals in seconds
-                    const intervals = {
-                        year: 31536000,
-                        month: 2592000,
-                        week: 604800,
-                        day: 86400,
-                        hour: 3600,
-                        minute: 60,
-                        second: 1
-                    };
-
-                    // Find the most appropriate time unit
-                    for (const [unit, secondsInUnit] of Object.entries(intervals)) {
-                        const interval = Math.floor(seconds / secondsInUnit);
-                        if (interval >= 1) {
-                            // Special handling for months/years to be more accurate
-                            if (unit === 'year' || unit === 'month') {
-                                const date1 = new Date(parsedDate);
-                                const date2 = new Date(now);
-                                if (unit === 'year') {
-                                    const years = date2.getFullYear() - date1.getFullYear();
-                                    if (years >= 1) {
-                                        return `${years} year${years === 1 ? '' : 's'} ago`;
-                                    }
-                                } else {
-                                    const months = (date2.getFullYear() - date1.getFullYear()) * 12 +
-                                        (date2.getMonth() - date1.getMonth());
-                                    if (months >= 1) {
-                                        return `${months} month${months === 1 ? '' : 's'} ago`;
-                                    }
-                                }
-                            } else {
-                                return `${interval} ${unit}${interval === 1 ? '' : 's'} ago`;
-                            }
-                        }
-                    }
-
-                    // Less than a second ago
-                    return 'just now';
-                } catch (error) {
-                    console.error('Error in timeAgo:', error);
-                    return 'unknown';
-                }
-            },
-
-            async fetchExecutions() {
-                try {
-                    const jobs = await fetch('/api/jobs').then(r => r.json());
-                    const executions = await Promise.all(
-                        jobs.map(job =>
-                            fetch(`/api/jobs/${job.uid}/history?limit=10`)
-                                .then(r => r.json())
-                                .catch(e => {
-                                    console.error(`Error fetching history for job ${job.uid}:`, e);
-                                    return [];
-                                })
-                        )
-                    );
-                    return executions.flat().sort((a, b) =>
-                        new Date(b.started_at) - new Date(a.started_at)
-                    );
-                } catch (e) {
-                    console.error('Error fetching executions:', e);
-                    return [];
-                }
-            },
-
-            getStatusEmoji(status) {
-                const emojis = {
-                    'COMPLETED': '✅',
-                    'FAILED': '❌',
-                    'RUNNING': '⏳',
-                    'PENDING': '⏰'
+                const seconds = Math.floor((now - parsedDate) / 1000);
+                const intervals = {
+                    year: 31536000,
+                    month: 2592000,
+                    week: 604800,
+                    day: 86400,
+                    hour: 3600,
+                    minute: 60,
+                    second: 1
                 };
-                return emojis[status] || '❔';
+
+                for (const [unit, secondsInUnit] of Object.entries(intervals)) {
+                    const interval = Math.floor(seconds / secondsInUnit);
+                    if (interval >= 1) {
+                        return `${interval} ${unit}${interval === 1 ? '' : 's'} ago`;
+                    }
+                }
+                return 'just now';
             },
 
             formatDuration(seconds) {
@@ -236,149 +155,175 @@
                 return new Date(date).toLocaleString();
             },
 
-            async updateMetrics(health, tasks, jobs) {
-                this.health = health;
+            getStatusEmoji(status) {
+                return {
+                    'COMPLETED': '✅',
+                    'FAILED': '❌',
+                    'RUNNING': '⏳',
+                    'PENDING': '⏰'
+                }[status] || '❔';
+            },
+
+            async fetchJobHistory(jobUid) {
+                try {
+                    const response = await fetch(`/api/jobs/${jobUid}/history`);
+                    return await response.json();
+                } catch (error) {
+                    console.error(`Error fetching history for job ${jobUid}:`, error);
+                    return [];
+                }
+            },
+
+            async fetchAllJobHistories(jobs) {
+                const histories = await Promise.all(
+                    jobs.map(job => this.fetchJobHistory(job.uid))
+                );
+                return histories.flat();
+            },
+
+            async updateMetrics(tasks, jobs, executions) {
                 this.metrics = {
                     totalTasks: Object.keys(tasks).length,
-                    activeTasks: jobs.filter(j => j.enabled).length,
-                    scheduledTasks: jobs.length,
+                    activeJobs: jobs.length,
+                    totalExecutions: executions.length,
                     lastUpdate: new Date()
                 };
             },
 
             updateActivityFeed(executions) {
-                this.recentActivity = executions.slice(0, 10);
+                this.recentActivity = executions
+                    .sort((a, b) => new Date(b.started_at) - new Date(a.started_at))
+                    .slice(0, 10);
             },
 
             updateUpcomingExecutions(jobs) {
                 this.upcomingExecutions = jobs
                     .filter(job => job.enabled && job.next_run)
-                    .map(job => ({
-                        name: job.task.name,
-                        next_run: job.next_run
-                    }))
                     .sort((a, b) => new Date(a.next_run) - new Date(b.next_run))
                     .slice(0, 5);
             },
 
             updateCharts(executions) {
-                if (executions.length === 0) {
-                    this.hasExecutionData = false;
-                    this.hasDistributionData = false;
-                    return;
-                }
-                this.updateExecutionHistoryChart(executions);
-                this.updateTaskDistributionChart(executions);
-            },
-
-            updateExecutionHistoryChart(executions) {
-                const ctx = document.getElementById('executionHistoryChart');
-                if (!ctx) return;
-
-                if (this.charts.executionHistory) {
-                    this.charts.executionHistory.destroy();
-                }
-
-                // Group executions by day and status
-                const grouped = executions.reduce((acc, exec) => {
-                    const date = new Date(exec.started_at).toLocaleDateString();
-                    if (!acc[date]) acc[date] = { COMPLETED: 0, FAILED: 0 };
-                    if (exec.status === 'COMPLETED' || exec.status === 'FAILED') {
-                        acc[date][exec.status]++;
-                    }
-                    return acc;
-                }, {});
-
-                const labels = Object.keys(grouped);
-                this.hasExecutionData = labels.length > 0;
-
-                if (!this.hasExecutionData) return;
-
-                this.charts.executionHistory = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Successful',
-                            data: Object.values(grouped).map(d => d.COMPLETED),
-                            backgroundColor: '#2ecc71'
-                        }, {
-                            label: 'Failed',
-                            data: Object.values(grouped).map(d => d.FAILED),
-                            backgroundColor: '#e74c3c'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                stacked: true
-                            },
-                            x: {
-                                stacked: true
-                            }
+                const chartOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
                         }
                     }
-                });
-            },
+                };
 
-            updateTaskDistributionChart(executions) {
-                const ctx = document.getElementById('taskDistributionChart');
-                if (!ctx) return;
-
-                if (this.charts.taskDistribution) {
-                    this.charts.taskDistribution.destroy();
-                }
-
-                // Group completed executions by task
-                const grouped = executions
-                    .filter(exec => exec.status === 'COMPLETED')
-                    .reduce((acc, exec) => {
-                        const task = exec.job.task.name;
-                        acc[task] = (acc[task] || 0) + 1;
+                // Execution History Chart
+                const ctx1 = document.getElementById('executionHistoryChart');
+                if (ctx1 && executions.length > 0) {
+                    // Group by day and status
+                    const grouped = executions.reduce((acc, exec) => {
+                        const date = new Date(exec.started_at).toLocaleDateString();
+                        if (!acc[date]) {
+                            acc[date] = { COMPLETED: 0, FAILED: 0 };
+                        }
+                        if (exec.status === 'COMPLETED' || exec.status === 'FAILED') {
+                            acc[date][exec.status]++;
+                        }
                         return acc;
                     }, {});
 
-                const labels = Object.keys(grouped);
-                this.hasDistributionData = labels.length > 0;
-
-                if (!this.hasDistributionData) return;
-
-                this.charts.taskDistribution = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            data: Object.values(grouped),
-                            backgroundColor: [
-                                '#2ecc71', '#3498db', '#9b59b6', '#f1c40f', '#e74c3c'
-                            ]
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false
+                    if (this.charts.executionHistory) {
+                        this.charts.executionHistory.destroy();
                     }
-                });
-            },
 
-            async init() {
-                await this.fetchDashboardData();
-                setInterval(() => this.fetchDashboardData(), 30000);
+                    this.charts.executionHistory = new Chart(ctx1, {
+                        type: 'bar',
+                        data: {
+                            labels: Object.keys(grouped),
+                            datasets: [
+                                {
+                                    label: 'Successful',
+                                    data: Object.values(grouped).map(d => d.COMPLETED),
+                                    backgroundColor: '#2ecc71'
+                                },
+                                {
+                                    label: 'Failed',
+                                    data: Object.values(grouped).map(d => d.FAILED),
+                                    backgroundColor: '#e74c3c'
+                                }
+                            ]
+                        },
+                        options: {
+                            ...chartOptions,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    stacked: true
+                                },
+                                x: {
+                                    stacked: true
+                                }
+                            }
+                        }
+                    });
+                    this.hasExecutionData = true;
+                }
+
+                // Task Distribution Chart
+                const ctx2 = document.getElementById('taskDistributionChart');
+                if (ctx2 && executions.length > 0) {
+                    // Group by task
+                    const taskGroups = executions.reduce((acc, exec) => {
+                        const taskName = exec.job.task.name;
+                        acc[taskName] = (acc[taskName] || 0) + 1;
+                        return acc;
+                    }, {});
+
+                    if (this.charts.taskDistribution) {
+                        this.charts.taskDistribution.destroy();
+                    }
+
+                    this.charts.taskDistribution = new Chart(ctx2, {
+                        type: 'doughnut',
+                        data: {
+                            labels: Object.keys(taskGroups),
+                            datasets: [{
+                                data: Object.values(taskGroups),
+                                backgroundColor: [
+                                    '#2ecc71',
+                                    '#3498db',
+                                    '#9b59b6',
+                                    '#f1c40f',
+                                    '#e74c3c'
+                                ]
+                            }]
+                        },
+                        options: chartOptions
+                    });
+                    this.hasDistributionData = true;
+                }
             },
 
             async fetchDashboardData() {
                 try {
-                    const [health, tasks, jobs, executions] = await Promise.all([
-                        fetch('/api/health').then(r => r.json()),
-                        fetch('/api/tasks').then(r => r.json()),
-                        fetch('/api/jobs').then(r => r.json()),
-                        this.fetchExecutions()
+                    const [healthResponse, tasksResponse, jobsResponse] = await Promise.all([
+                        fetch('/api/health'),
+                        fetch('/api/tasks'),
+                        fetch('/api/jobs')
                     ]);
 
-                    this.updateMetrics(health, tasks, jobs);
+                    const [health, tasks, jobs] = await Promise.all([
+                        healthResponse.json(),
+                        tasksResponse.json(),
+                        jobsResponse.json()
+                    ]);
+
+                    // Fetch execution histories for all jobs
+                    const executions = await this.fetchAllJobHistories(jobs);
+
+                    this.health = {
+                        status: health.status,
+                        lastCheck: new Date()
+                    };
+
+                    await this.updateMetrics(tasks, jobs, executions);
                     this.updateActivityFeed(executions);
                     this.updateUpcomingExecutions(jobs);
                     this.updateCharts(executions);
@@ -387,8 +332,14 @@
                     console.error('Error fetching dashboard data:', error);
                     showToast('Error updating dashboard', 'error');
                 }
+            },
+
+            async init() {
+                await this.fetchDashboardData();
+                // Refresh dashboard every 30 seconds
+                setInterval(() => this.fetchDashboardData(), 30000);
             }
-        }
+        };
     }
 </script>
 {% endblock %}

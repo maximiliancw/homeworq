@@ -51,4 +51,54 @@ $(document).ready(function () {
       button.textContent = button.dataset.originalText;
     }
   }
+
+  function brandAnimation() {
+    return {
+      letters: "homeworq".split(""),
+      isLoading: false,
+      animationInterval: null,
+
+      init() {
+        // Listen for AJAX events using jQuery
+        $(document).on("ajaxStart", () => {
+          this.isLoading = true;
+          this.startAnimation();
+        });
+
+        $(document).on("ajaxComplete", () => {
+          this.isLoading = false;
+          this.stopAnimation();
+        });
+      },
+
+      getRandomPosition(index) {
+        const x = Math.random() * 40 - 20;
+        const y = Math.random() * 40 - 20;
+        const rotation = Math.random() * 360;
+        const delay = index * 50;
+
+        return {
+          "--x": `${x}px`,
+          "--y": `${y}px`,
+          "--rotation": `${rotation}deg`,
+          "transition-delay": `${delay}ms`,
+        };
+      },
+
+      startAnimation() {
+        // Update positions periodically while loading
+        this.animationInterval = setInterval(() => {
+          // This will trigger a re-render of the positions
+          this.isLoading = true;
+        }, 150);
+      },
+
+      stopAnimation() {
+        if (this.animationInterval) {
+          clearInterval(this.animationInterval);
+          this.animationInterval = null;
+        }
+      },
+    };
+  }
 });

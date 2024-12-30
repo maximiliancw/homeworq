@@ -1,26 +1,24 @@
 {% extends "base.html" %}
-
 {% block title %}Jobs{% endblock %}
 
 {% block content %}
 <div x-data="jobsTable()" class="table-container">
-    <table id="jobsTable" aria-describedby="Scheduled Jobs">
+    <table id="jobsTable" aria-label="Scheduled Jobs">
         <thead>
             <tr>
                 <th>Name</th>
                 <th>Task</th>
                 <th>Schedule</th>
+                <th>Status</th>
                 <th>Last Run</th>
                 <th>Next Run</th>
-                <th>History</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
     function jobsTable() {
         return {
@@ -30,22 +28,26 @@
                 this.table = $('#jobsTable').DataTable({
                     ajax: {
                         url: "/api/jobs",
-                        dataSrc: json => Object.entries(json).map(([name, job]) => ({
-                            name: name,
-                            ...job
-                        }))
+                        dataSrc: ''
                     },
                     columns: [
-                        { data: "name" },
-                        { data: "task.name" },
+                        {
+                            data: "uid",
+                            render: (data, type, row) => `<kbd>${row.task.name}</kbd>`
+                        },
+                        {
+                            data: "task.name",
+                            render: data => data
+                        },
                         {
                             data: "schedule",
-                            render: data => {
-                                if (typeof data === 'string') {
-                                    return `<code>${data}</code>`;
-                                }
-                                return `Every ${data.interval} ${data.unit}${data.at ? ` at ${data.at}` : ''}`;
-                            }
+                            render: data => `<code>${JSON.stringify(data)}</code>`
+                        },
+                        {
+                            data: "enabled",
+                            render: data => data ?
+                                '<span class="badge success">Enabled</span>' :
+                                '<span class="badge error">Disabled</span>'
                         },
                         {
                             data: "last_run",
@@ -56,67 +58,61 @@
                             render: data => data ? new Date(data).toLocaleString() : 'Not scheduled'
                         },
                         {
-                            data: "name",
+                            data: "uid",
                             render: data => `<button class="button button-small" @click="showJobHistory('${data}')">History</button>`
                         }
-                    ]
+                    ],
+                    order: [[4, 'desc']]
                 });
 
                 // Refresh data periodically
                 setInterval(() => this.table.ajax.reload(null, false), 30000);
             },
 
-            async showJobHistory(jobName) {
+            async showJobHistory(jobUid) {
                 try {
-                    const response = await fetch(`/api/jobs/${jobName}/history`);
+                    const response = await fetch(`/api/jobs/${jobUid}/history`);
                     const history = await response.json();
 
-                    const formattedHistory = history.map(execution => ({
-                        ...execution,
-                        started_at: new Date(execution.started_at).toLocaleString(),
-                        completed_at: execution.completed_at ? new Date(execution.completed_at).toLocaleString() : '-',
-                        duration: execution.duration ? `${execution.duration.toFixed(2)}s` : '-',
-                        status: `${this.getStatusEmoji(execution.status)} ${execution.status}`
-                    }));
-
                     showModal(
-                        `Job History: ${jobName}`,
-                        `<table>
-                        <thead>
-                            <tr>
-                                <th>Started</th>
-                                <th>Completed</th>
-                                <th>Duration</th>
-                                <th>Status</th>
-                                <th>Result/Error</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${formattedHistory.map(exec => `
-                                <tr>
-                                    <td>${exec.started_at}</td>
-                                    <td>${exec.completed_at}</td>
-                                    <td>${exec.duration}</td>
-                                    <td>${exec.status}</td>
-                                    <td>${exec.error || JSON.stringify(exec.result, null, 2) || '-'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>`
+                        `Job History`,
+                        this.formatJobHistory(history)
                     );
                 } catch (error) {
                     showToast(`Error fetching job history: ${error.message}`, 'error');
                 }
             },
 
+            formatJobHistory(history) {
+                return `<table>
+                    <thead>
+                        <tr>
+                            <th>Started</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Result/Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${history.map(exec => `
+                            <tr>
+                                <td>${new Date(exec.started_at).toLocaleString()}</td>
+                                <td>${this.getStatusEmoji(exec.status)} ${exec.status}</td>
+                                <td>${exec.duration ? `${exec.duration.toFixed(2)}s` : '-'}</td>
+                                <td>${exec.error || JSON.stringify(exec.result) || '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`;
+            },
+
             getStatusEmoji(status) {
-                const emojis = {
-                    'pending': '⏳',
-                    'running': '🔄',
-                    'completed': '✅',
-                    'failed': '❌'
-                };
-                return emojis[status] || '❔';
+                return {
+                    'COMPLETED': '✅',
+                    'FAILED': '❌',
+                    'RUNNING': '⏳',
+                    'PENDING': '⏰'
+                }[status] || '❔';
             }
         }
     }

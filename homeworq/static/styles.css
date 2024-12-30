@@ -78,3 +78,17 @@ pre {
     display: none; /* Hide the toggle button on larger screens */
   }
 }
+
+.letter-animation {
+  display: inline-block;
+  transition: all 0.3s ease-in-out;
+}
+
+.letter-animation.loading {
+  transform: translate(var(--x, 0), var(--y, 0)) rotate(var(--rotation, 0deg));
+}
+
+.active {
+  font-weight: bold;
+  color: var(--pico-color-red-500);
+}

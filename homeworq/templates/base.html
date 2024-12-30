@@ -20,16 +20,12 @@
     <header class="container">
         <nav>
             <ul>
-                <!-- Branding -->
                 <li>
-                    <hgroup>
-                        <h1>homeworq</h1>
-                        <p>Task scheduling for homeservers</p>
-                    </hgroup>
-                </li>
-            </ul>
-            <ul>
-                <li>
+                    <h1>
+                        <span style="color: var(--pico-primary)">h</span>omewor<span
+                            style="color: var(--pico-primary)">q</span>
+                    </h1>
+
                     <!-- Mobile Menu Button -->
                     <button class="contrast" @click="menuOpen = !menuOpen" aria-label="Toggle Menu">
                         ☰
@@ -42,6 +38,42 @@
                 <li><a href="/tasks">Tasks</a></li>
                 <li><a href="/jobs">Jobs</a></li>
                 <li><a href="/results">Results</a></li>
+            </ul>
+            <ul>
+                <li>
+                    <a href="/api/docs" target="_blank" class="secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30"
+                            fill="currentColor" aria-hidden="true"></svg>
+                        <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+                        </svg>
+                        API
+                    </a>
+                </li>
+                <li>
+                    <a href="https://github.com/maximiliancw/homeworq" target="_blank" class="secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                            aria-hidden="true" width="30" height="30">
+                            <path fill-rule="evenodd" clip-rule="evenodd"
+                                d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.166 6.839 9.489.5.092.683-.217.683-.483 0-.238-.008-.866-.013-1.7-2.782.604-3.37-1.343-3.37-1.343-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.07-.607.07-.607 1.003.071 1.531 1.033 1.531 1.033.892 1.529 2.341 1.087 2.91.831.091-.647.35-1.086.637-1.337-2.22-.252-4.555-1.111-4.555-4.946 0-1.092.39-1.986 1.029-2.686-.103-.253-.446-1.268.099-2.645 0 0 .84-.269 2.75 1.026A9.564 9.564 0 0 1 12 5.8a9.56 9.56 0 0 1 2.501.336c1.91-1.295 2.75-1.026 2.75-1.026.546 1.377.202 2.392.1 2.645.64.7 1.029 1.594 1.029 2.686 0 3.845-2.337 4.692-4.565 4.94.359.31.679.924.679 1.861 0 1.344-.012 2.429-.012 2.759 0 .268.181.58.688.482C19.13 20.164 22 16.421 22 12c0-5.52-4.48-10-10-10z">
+                            </path>
+                        </svg>
+                        Source
+                    </a>
+                </li>
+                <li>
+                    <a href="https://maximiliancw.github.io/homeworq" target="_blank" class="secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30"
+                            fill="currentColor" aria-hidden="true">
+                            <!-- Circle -->
+                            <circle cx="12" cy="12" r="10" fill="secondary" />
+                            <!-- Info "i" -->
+                            <line x1="12" y1="10" x2="12" y2="16" stroke="#ffffff" stroke-width="2" />
+                            <circle cx="12" cy="7" r="1" fill="#ffffff" />
+                        </svg>
+                        Docs
+                    </a>
+                </li>
             </ul>
         </nav>
     </header>
@@ -80,6 +112,23 @@
 
     <!-- Scripts -->
     <script type="text/javascript" charset="utf8" src="static/scripts.js"></script>
+    <script>
+        $(document).ready(function () {
+            // Get the current URL path
+            var path = window.location.pathname;
+
+            // Add 'active' class to the corresponding navigation link
+            if (path === "/") {
+                $("#nav-dashboard").addClass("active");
+            } else if (path.startsWith("/tasks")) {
+                $("#nav-tasks").addClass("active");
+            } else if (path.startsWith("/jobs")) {
+                $("#nav-jobs").addClass("active");
+            } else if (path.startsWith("/results")) {
+                $("#nav-results").addClass("active");
+            }
+        });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 

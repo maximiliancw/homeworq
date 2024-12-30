@@ -7,28 +7,28 @@
     <div class="grid">
         <article>
             <header>
-                <h3>Total Tasks</h3>
+                <h3>Tasks</h3>
                 <p x-text="metrics.totalTasks || '-'"></p>
             </header>
             <small>Last updated <span x-text="timeAgo(metrics.lastUpdate)"></span></small>
         </article>
         <article>
             <header>
-                <h3>Active Tasks</h3>
+                <h3>Jobs</h3>
                 <p x-text="metrics.activeTasks || '-'"></p>
             </header>
             <small>Last updated <span x-text="timeAgo(metrics.lastUpdate)"></span></small>
         </article>
         <article>
             <header>
-                <h3>Scheduled Jobs</h3>
+                <h3>Executions</h3>
                 <p x-text="metrics.scheduledTasks || '-'"></p>
             </header>
             <small>Last updated <span x-text="timeAgo(metrics.lastUpdate)"></span></small>
         </article>
         <article>
             <header>
-                <h3>System Status</h3>
+                <h3>System</h3>
                 <p>
                     <kbd x-bind:class="health.status === 'healthy' ? 'success' : 'error'"
                         x-text="health.status">healthy</kbd>

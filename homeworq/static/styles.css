@@ -1,9 +1,29 @@
+@font-face {
+  font-family: "Comfortaa";
+  src: url("/static/Comfortaa-VariableFont_wght.ttf");
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+nav,
+th,
+button {
+  font-family: "Comfortaa" !important;
+}
+
 pre {
   padding: 1rem; /* Add horizontal and vertical padding */
   background-color: #f4f4f4; /* Optional: for better visibility */
   border: 1px solid #ddd; /* Optional: to create a styled box */
   overflow: auto; /* Ensures content scrolls instead of breaking the layout */
   box-sizing: border-box; /* Ensures padding is included in the element’s width */
+}
+
+tbody {
+  font-size: 0.75rem !important;
 }
 
 /* Toast styles */

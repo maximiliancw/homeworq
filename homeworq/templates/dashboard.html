@@ -75,7 +75,7 @@
                             <th scope="col">Next Run</th>
                         </tr>
                     </thead>
-                    <tbody style="font-size: .75rem">
+                    <tbody>
                         <template x-for="job in $store.data.analytics.upcomingExecutions" :key="job.id">
                             <tr>
                                 <td><strong x-text="job.name"></strong></td>

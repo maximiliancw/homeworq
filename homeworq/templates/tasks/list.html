@@ -1,0 +1,52 @@
+{% extends "_layout.html" %}
+
+{% block title %}
+Tasks
+{% endblock %}
+
+{% block content %}
+<div x-data="taskList()" x-init="$store.data.fetchTasks()" aria-label="Available Tasks">
+    <template x-if="$store.data.tasks.length === 0">
+        <p class="text-muted">No tasks available</p>
+    </template>
+
+    <template x-for="task in filteredTasks" :key="task.name">
+        <section :id="'task-' + task.name" class="task-section" style="margin-top: 5rem;">
+            <header style="display: flex; justify-content: space-between; align-items: center;">
+                <hgroup>
+                    <h3 x-text="task.title || task.name" style="margin-bottom: 1rem"></h3>
+                    <code x-text="task.name"></code>
+                </hgroup>
+                <div style="display: flex; align-items: center;">
+                    <div role="group">
+                        <button class="secondary">Run</button>
+                        <button>Schedule</button>
+                    </div>
+                </div>
+            </header>
+            <div style="margin-top: 1rem;">
+                <pre x-text="task.description || 'No description available'"></pre>
+            </div>
+        </section>
+    </template>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function taskList() {
+        return {
+            get filteredTasks() {
+                const query = Alpine.store('data').search.toLowerCase().trim();
+                const tasks = Alpine.store('data').tasks;
+                return query === '' ? tasks : tasks.filter(task =>
+                    task.name.toLowerCase().includes(query) ||
+                    (task.description && task.description.toLowerCase().includes(query)) ||
+                    (task.title && task.title.toLowerCase().includes(query))
+                );
+            }
+        };
+    }
+</script>
+{% endblock %}

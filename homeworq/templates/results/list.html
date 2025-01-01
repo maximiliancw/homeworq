@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "_layout.html" %}
 {% block title %}Results{% endblock %}
 
 {% block content %}
-<div x-data="resultsTable()" class="table-container">
+<div x-data="resultsTable()" x-init="init()" class="table-container">
     <table id="resultsTable" aria-label="Job Execution Results">
         <thead>
             <tr>
@@ -31,13 +31,13 @@
                     },
                     columns: [
                         {
-                            data: "job.uid",
+                            data: "job.id",
                             render: (data, type, row) => `<kbd>${data}</kbd>`
                         },
                         { data: "job.task.name" },
                         {
                             data: "started_at",
-                            render: data => new Date(data).toLocaleString()
+                            render: data => data ? new Date(data).toLocaleString() : 'N/A'
                         },
                         {
                             data: "duration",
@@ -51,19 +51,18 @@
                             data: null,
                             render: (data, type, row) => {
                                 const details = row.error || JSON.stringify(row.result, null, 2) || '-';
-                                return `<button class="button button-small" @click="showDetails('${row.job.uid}', ${JSON.stringify(details)})">Details</button>`;
+                                return `<button class="button button-small" onclick="showDetails('${row.job.id}', '${details.replace(/'/g, "\\'")}')">Details</button>`;
                             }
                         }
                     ],
                     order: [[2, 'desc']]
                 });
 
-                // Refresh data periodically
-                setInterval(() => this.table.ajax.reload(null, false), 30000);
-            },
-
-            showDetails(jobUid, details) {
-                showModal(`Execution Details: ${jobUid}`, details);
+                // Use store for periodic updates
+                setInterval(() => {
+                    Alpine.store('data').fetchExecutions();
+                    this.table.ajax.reload(null, false);
+                }, 30000);
             },
 
             getStatusEmoji(status) {
@@ -75,6 +74,18 @@
                 }[status] || '❔';
             }
         }
+    }
+
+    function showDetails(jobUid, details) {
+        const modal = document.getElementById('modal');
+        modal.querySelector('.modal-title').innerText = `Execution Details: ${jobUid}`;
+        modal.querySelector('.modal-body').innerText = details;
+        modal.showModal();
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('modal');
+        modal.close();
     }
 </script>
 {% endblock %}

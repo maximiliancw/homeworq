@@ -3,7 +3,7 @@ import typing
 import urllib.request
 from typing import Any, Dict
 
-from homeworq import Homeworq, models, register_task
+from homeworq import Homeworq, register_task, schemas
 
 
 @register_task(title="Website Health Check")
@@ -39,7 +39,7 @@ async def process_data(
     Returns:
         Dict containing processing statistics
     """
-    asyncio.sleep(5)  # Simulate processing time
+    await asyncio.sleep(5)  # Simulate processing time
     return {
         "processed_records": batch_size,
         "input_path": input_path,
@@ -48,7 +48,7 @@ async def process_data(
 
 if __name__ == "__main__":
     # Define settings
-    settings = models.Settings(
+    settings = schemas.Settings(
         api_on=True,  # Enable the web interface
         api_host="localhost",  # Host for the web interface
         api_port=8000,  # Port for the web interface
@@ -58,30 +58,30 @@ if __name__ == "__main__":
     # Optional: Define default jobs which will be loaded on startup
     default_jobs = [
         # Job 1: Health check every hour
-        models.JobCreate(
+        schemas.JobCreate(
             task="ping",
             params={"url": "https://example.com"},
-            schedule=models.JobSchedule(
+            schedule=schemas.JobSchedule(
                 interval=1,
-                unit=models.TimeUnit.MINUTES,
+                unit=schemas.TimeUnit.MINUTES,
             ),
-            options=models.JobOptions(
+            options=schemas.JobOptions(
                 timeout=30,  # 30 second timeout
                 max_retries=3,  # Retry up to 3 times
             ),
         ),
         # Job 2: Data processing daily at 2 AM
-        models.JobCreate(
+        schemas.JobCreate(
             task="process_data",
             params={
                 "input_path": "/data/daily_import",
                 "batch_size": 1000,
             },
-            schedule=models.JobSchedule(
+            schedule=schemas.JobSchedule(
                 interval=1,
-                unit=models.TimeUnit.MINUTES,
+                unit=schemas.TimeUnit.MINUTES,
             ),
-            options=models.JobOptions(
+            options=schemas.JobOptions(
                 timeout=3600,  # 1 hour timeout
                 max_retries=2,  # Retry up to 2 times
             ),

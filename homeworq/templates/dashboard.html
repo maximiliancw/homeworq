@@ -1,28 +1,28 @@
-{% extends "base.html" %}
+{% extends "_layout.html" %}
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<section x-data="dashboard()" class="container">
+<section x-data="dashboard()" x-init="init()" class="container">
     <!-- Summary Metrics -->
     <div class="grid">
         <article>
             <h3>Tasks</h3>
-            <p x-text="metrics.totalTasks || '-'"></p>
+            <span x-text="$store.data.metrics.totalTasks || '-'"></span>
         </article>
         <article>
             <h3>Jobs</h3>
-            <p x-text="metrics.activeJobs || '-'"></p>
+            <span x-text="$store.data.metrics.activeJobs || '-'"></span>
         </article>
         <article>
-            <h3>Executions</h3>
-            <p x-text="metrics.totalExecutions || '-'"></p>
+            <h3>Results</h3>
+            <span x-text="$store.data.metrics.totalExecutions || '-'"></span>
         </article>
         <article>
             <h3>System</h3>
-            <p>
-                <kbd x-bind:class="health.status === 'healthy' ? 'success' : 'error'"
-                    x-text="health.status">unknown</kbd>
-            </p>
+            <kbd x-bind:class="$store.data.health.healthy ? 'pico-background-green-500' : 'pico-background-red-500'"
+                x-text="$store.data.health.healthy ? 'healthy' : 'unstable'">
+                unknown
+            </kbd>
         </article>
     </div>
 
@@ -33,14 +33,14 @@
                 <h3>Recent Activity</h3>
             </header>
             <div class="activity-feed">
-                <template x-if="recentActivity.length === 0">
+                <template x-if="$store.data.analytics.recentActivity.length === 0">
                     <p class="text-muted">No recent activity</p>
                 </template>
-                <template x-for="exec in recentActivity" :key="exec.started_at">
+                <template x-for="exec in $store.data.analytics.recentActivity" :key="exec.started_at">
                     <div class="activity-item">
                         <span x-text="getStatusEmoji(exec.status)"></span>
                         <span><strong x-text="exec.job.task.name"></strong></span>
-                        <span x-text="timeAgo(exec.started_at)"></span>
+                        <span x-text="formatTimeAgo(exec.started_at)"></span>
                         <span x-show="exec.duration !== null" x-text="formatDuration(exec.duration)"></span>
                     </div>
                 </template>
@@ -51,13 +51,13 @@
                 <h3>Upcoming Executions</h3>
             </header>
             <div class="upcoming-list">
-                <template x-if="upcomingExecutions.length === 0">
+                <template x-if="$store.data.analytics.upcomingExecutions.length === 0">
                     <p class="text-muted">No upcoming executions</p>
                 </template>
-                <template x-for="job in upcomingExecutions" :key="job.uid">
+                <template x-for="job in $store.data.analytics.upcomingExecutions" :key="job.id">
                     <div class="upcoming-item">
                         <span><strong x-text="job.task.name"></strong></span>
-                        <span x-text="formatNextRun(job.next_run)"></span>
+                        <span x-text="formatDate(job.next_run)"></span>
                     </div>
                 </template>
             </div>
@@ -97,40 +97,106 @@
 <script>
     function dashboard() {
         return {
-            metrics: {
-                totalTasks: 0,
-                activeJobs: 0,
-                totalExecutions: 0,
-                lastUpdate: new Date()
-            },
-            health: {
-                status: 'unknown',
-                lastCheck: new Date()
-            },
-            recentActivity: [],
-            upcomingExecutions: [],
-            charts: {
-                executionHistory: null,
-                taskDistribution: null
-            },
+            executionHistory: null,
+            taskDistribution: null,
             hasExecutionData: false,
             hasDistributionData: false,
 
-            timeAgo(date) {
-                if (!date) return 'never';
-                const now = new Date();
-                const parsedDate = new Date(date);
-                if (isNaN(parsedDate.getTime())) return 'invalid date';
+            async init() {
+                await Alpine.store('data').fetchAll();
+                this.initCharts();
+                this.updateCharts();
 
-                const seconds = Math.floor((now - parsedDate) / 1000);
+                setInterval(async () => {
+                    await Alpine.store('data').fetchAll();
+                    this.updateCharts();
+                }, 60000);
+            },
+
+            initCharts() {
+                this.executionHistory = new Chart('executionHistoryChart', {
+                    type: 'line',
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+
+                this.taskDistribution = new Chart('taskDistributionChart', {
+                    type: 'bar',
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, stacked: true },
+                            x: { stacked: true }
+                        }
+                    }
+                });
+            },
+
+            updateCharts() {
+                const history = Alpine.store('data').analytics.executionHistory;
+                const distribution = Alpine.store('data').analytics.taskDistribution;
+
+                if (history?.length > 0) {
+                    this.hasExecutionData = true;
+                    this.executionHistory.data = {
+                        labels: history.map(d => d.date),
+                        datasets: [{
+                            label: 'Completed',
+                            data: history.map(d => d.completed),
+                            borderColor: '#10b981',
+                            fill: false
+                        }, {
+                            label: 'Failed',
+                            data: history.map(d => d.failed),
+                            borderColor: '#ef4444',
+                            fill: false
+                        }]
+                    };
+                    this.executionHistory.update();
+                }
+
+                if (distribution?.length > 0) {
+                    this.hasDistributionData = true;
+                    this.taskDistribution.data = {
+                        labels: distribution.map(d => d.task),
+                        datasets: [{
+                            label: 'Completed',
+                            data: distribution.map(d => d.completed),
+                            backgroundColor: '#10b981'
+                        }, {
+                            label: 'Failed',
+                            data: distribution.map(d => d.failed),
+                            backgroundColor: '#ef4444'
+                        }]
+                    };
+                    this.taskDistribution.update();
+                }
+            },
+
+            getStatusEmoji(status) {
+                return {
+                    'COMPLETED': '✅',
+                    'FAILED': '❌',
+                    'RUNNING': '⏳',
+                    'PENDING': '⏰'
+                }[status] || '❔';
+            },
+
+            formatTimeAgo(date) {
+                const seconds = Math.floor((new Date() - new Date(date)) / 1000);
                 const intervals = {
                     year: 31536000,
                     month: 2592000,
                     week: 604800,
                     day: 86400,
                     hour: 3600,
-                    minute: 60,
-                    second: 1
+                    minute: 60
                 };
 
                 for (const [unit, secondsInUnit] of Object.entries(intervals)) {
@@ -143,201 +209,7 @@
             },
 
             formatDuration(seconds) {
-                if (!seconds) return '';
-                if (seconds < 60) return `${seconds.toFixed(1)}s`;
-                const minutes = Math.floor(seconds / 60);
-                seconds = Math.round(seconds % 60);
-                return `${minutes}m ${seconds}s`;
-            },
-
-            formatNextRun(date) {
-                if (!date) return 'Not scheduled';
-                return new Date(date).toLocaleString();
-            },
-
-            getStatusEmoji(status) {
-                return {
-                    'COMPLETED': '✅',
-                    'FAILED': '❌',
-                    'RUNNING': '⏳',
-                    'PENDING': '⏰'
-                }[status] || '❔';
-            },
-
-            async fetchJobHistory(jobUid) {
-                try {
-                    const response = await fetch(`/api/jobs/${jobUid}/history`);
-                    return await response.json();
-                } catch (error) {
-                    console.error(`Error fetching history for job ${jobUid}:`, error);
-                    return [];
-                }
-            },
-
-            async fetchAllJobHistories(jobs) {
-                const histories = await Promise.all(
-                    jobs.map(job => this.fetchJobHistory(job.uid))
-                );
-                return histories.flat();
-            },
-
-            async updateMetrics(tasks, jobs, executions) {
-                this.metrics = {
-                    totalTasks: Object.keys(tasks).length,
-                    activeJobs: jobs.length,
-                    totalExecutions: executions.length,
-                    lastUpdate: new Date()
-                };
-            },
-
-            updateActivityFeed(executions) {
-                this.recentActivity = executions
-                    .sort((a, b) => new Date(b.started_at) - new Date(a.started_at))
-                    .slice(0, 10);
-            },
-
-            updateUpcomingExecutions(jobs) {
-                this.upcomingExecutions = jobs
-                    .filter(job => job.enabled && job.next_run)
-                    .sort((a, b) => new Date(a.next_run) - new Date(b.next_run))
-                    .slice(0, 5);
-            },
-
-            updateCharts(executions) {
-                const chartOptions = {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                };
-
-                // Execution History Chart
-                const ctx1 = document.getElementById('executionHistoryChart');
-                if (ctx1 && executions.length > 0) {
-                    // Group by day and status
-                    const grouped = executions.reduce((acc, exec) => {
-                        const date = new Date(exec.started_at).toLocaleDateString();
-                        if (!acc[date]) {
-                            acc[date] = { COMPLETED: 0, FAILED: 0 };
-                        }
-                        if (exec.status === 'COMPLETED' || exec.status === 'FAILED') {
-                            acc[date][exec.status]++;
-                        }
-                        return acc;
-                    }, {});
-
-                    if (this.charts.executionHistory) {
-                        this.charts.executionHistory.destroy();
-                    }
-
-                    this.charts.executionHistory = new Chart(ctx1, {
-                        type: 'bar',
-                        data: {
-                            labels: Object.keys(grouped),
-                            datasets: [
-                                {
-                                    label: 'Successful',
-                                    data: Object.values(grouped).map(d => d.COMPLETED),
-                                    backgroundColor: '#2ecc71'
-                                },
-                                {
-                                    label: 'Failed',
-                                    data: Object.values(grouped).map(d => d.FAILED),
-                                    backgroundColor: '#e74c3c'
-                                }
-                            ]
-                        },
-                        options: {
-                            ...chartOptions,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    stacked: true
-                                },
-                                x: {
-                                    stacked: true
-                                }
-                            }
-                        }
-                    });
-                    this.hasExecutionData = true;
-                }
-
-                // Task Distribution Chart
-                const ctx2 = document.getElementById('taskDistributionChart');
-                if (ctx2 && executions.length > 0) {
-                    // Group by task
-                    const taskGroups = executions.reduce((acc, exec) => {
-                        const taskName = exec.job.task.name;
-                        acc[taskName] = (acc[taskName] || 0) + 1;
-                        return acc;
-                    }, {});
-
-                    if (this.charts.taskDistribution) {
-                        this.charts.taskDistribution.destroy();
-                    }
-
-                    this.charts.taskDistribution = new Chart(ctx2, {
-                        type: 'doughnut',
-                        data: {
-                            labels: Object.keys(taskGroups),
-                            datasets: [{
-                                data: Object.values(taskGroups),
-                                backgroundColor: [
-                                    '#2ecc71',
-                                    '#3498db',
-                                    '#9b59b6',
-                                    '#f1c40f',
-                                    '#e74c3c'
-                                ]
-                            }]
-                        },
-                        options: chartOptions
-                    });
-                    this.hasDistributionData = true;
-                }
-            },
-
-            async fetchDashboardData() {
-                try {
-                    const [healthResponse, tasksResponse, jobsResponse] = await Promise.all([
-                        fetch('/api/health'),
-                        fetch('/api/tasks'),
-                        fetch('/api/jobs')
-                    ]);
-
-                    const [health, tasks, jobs] = await Promise.all([
-                        healthResponse.json(),
-                        tasksResponse.json(),
-                        jobsResponse.json()
-                    ]);
-
-                    // Fetch execution histories for all jobs
-                    const executions = await this.fetchAllJobHistories(jobs);
-
-                    this.health = {
-                        status: health.status,
-                        lastCheck: new Date()
-                    };
-
-                    await this.updateMetrics(tasks, jobs, executions);
-                    this.updateActivityFeed(executions);
-                    this.updateUpcomingExecutions(jobs);
-                    this.updateCharts(executions);
-
-                } catch (error) {
-                    console.error('Error fetching dashboard data:', error);
-                    showToast('Error updating dashboard', 'error');
-                }
-            },
-
-            async init() {
-                await this.fetchDashboardData();
-                // Refresh dashboard every 30 seconds
-                setInterval(() => this.fetchDashboardData(), 30000);
+                return `${seconds.toFixed(1)}s`;
             }
         };
     }

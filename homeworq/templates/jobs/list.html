@@ -1,8 +1,9 @@
-{% extends "base.html" %}
+{% extends "_layout.html" %}
+
 {% block title %}Jobs{% endblock %}
 
 {% block content %}
-<div x-data="jobsTable()" class="table-container">
+<div x-data="jobsTable()" x-init="init()" class="table-container">
     <table id="jobsTable" aria-label="Scheduled Jobs">
         <thead>
             <tr>
@@ -18,7 +19,9 @@
         <tbody></tbody>
     </table>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
     function jobsTable() {
         return {
@@ -32,22 +35,19 @@
                     },
                     columns: [
                         {
-                            data: "uid",
+                            data: "id",
                             render: (data, type, row) => `<kbd>${row.task.name}</kbd>`
                         },
-                        {
-                            data: "task.name",
-                            render: data => data
-                        },
+                        { data: "task.name" },
                         {
                             data: "schedule",
-                            render: data => `<code>${JSON.stringify(data)}</code>`
+                            render: data => data ? `<code>${JSON.stringify(data)}</code>` : 'N/A'
                         },
                         {
                             data: "enabled",
-                            render: data => data ?
-                                '<span class="badge success">Enabled</span>' :
-                                '<span class="badge error">Disabled</span>'
+                            render: data => data
+                                ? '<span class="badge success">Enabled</span>'
+                                : '<span class="badge error">Disabled</span>'
                         },
                         {
                             data: "last_run",
@@ -58,21 +58,26 @@
                             render: data => data ? new Date(data).toLocaleString() : 'Not scheduled'
                         },
                         {
-                            data: "uid",
-                            render: data => `<button class="button button-small" @click="showJobHistory('${data}')">History</button>`
+                            data: "id",
+                            render: data => `
+                                <button class="button button-small" onclick="showJobHistory('${data}')">History</button>
+                                <button class="button button-small error" onclick="deleteJob('${data}')">Delete</button>
+                            `
                         }
                     ],
                     order: [[4, 'desc']]
                 });
 
-                // Refresh data periodically
-                setInterval(() => this.table.ajax.reload(null, false), 30000);
+                setInterval(() => {
+                    Alpine.store('data').fetchJobs();
+                    this.table.ajax.reload(null, false);
+                }, 30000);
             },
 
-            async showJobHistory(jobUid) {
+            async showJobHistory(jobId) {
                 try {
-                    const response = await fetch(`/api/jobs/${jobUid}/history`);
-                    const history = await response.json();
+                    const response = await fetch(`/api/jobs/${jobId}/history`);
+                    const history = await response.json().items;
 
                     showModal(
                         `Job History`,
@@ -80,6 +85,22 @@
                     );
                 } catch (error) {
                     showToast(`Error fetching job history: ${error.message}`, 'error');
+                }
+            },
+
+            async deleteJob(jobId) {
+                if (!confirm('Are you sure you want to delete this job?')) return;
+                try {
+                    const response = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        showToast('Job deleted successfully', 'success');
+                        await Alpine.store('data').fetchJobs();
+                        this.table.ajax.reload(null, false);
+                    } else {
+                        throw new Error('Failed to delete job');
+                    }
+                } catch (error) {
+                    showToast(`Error deleting job: ${error.message}`, 'error');
                 }
             },
 
@@ -114,7 +135,19 @@
                     'PENDING': '⏰'
                 }[status] || '❔';
             }
-        }
+        };
+    }
+
+    function showModal(title, content) {
+        const modal = document.getElementById('modal');
+        modal.querySelector('.modal-title').innerText = title;
+        modal.querySelector('.modal-body').innerHTML = content;
+        modal.showModal();
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('modal');
+        modal.close();
     }
 </script>
 {% endblock %}

@@ -5,7 +5,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from .core import Homeworq
-from .models import Settings
+from .schemas import Settings
 
 # Initialize Typer app
 app = typer.Typer(

@@ -7,6 +7,7 @@
     <title>homeworq</title>
     <link rel="stylesheet" type="text/css" href="static/styles.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.colors.min.css">
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
     <script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -34,10 +35,10 @@
             </ul>
             <!-- Navigation Menu -->
             <ul :class="{ 'hidden': !menuOpen }" class="menu" x-data="{ menuOpen: false }">
-                <li><a href="/">Dashboard</a></li>
-                <li><a href="/tasks">Tasks</a></li>
-                <li><a href="/jobs">Jobs</a></li>
-                <li><a href="/results">Results</a></li>
+                <li><a id="nav-dashboard" href="/">Dashboard</a></li>
+                <li><a id="nav-tasks" href="/tasks">Tasks</a></li>
+                <li><a id="nav-jobs" href="/jobs">Jobs</a></li>
+                <li><a id="nav-results" href="/results">Results</a></li>
             </ul>
             <ul>
                 <li>
@@ -112,11 +113,14 @@
 
     <!-- Scripts -->
     <script type="text/javascript" charset="utf8" src="static/scripts.js"></script>
+    <script type="text/javascript" charset="utf8" src="static/store.js"></script>
     <script>
-        $(document).ready(function () {
-            // Get the current URL path
-            var path = window.location.pathname;
+        // Start periodic updates
+        $(document).ready(() => {
+            const store = Alpine.store('data');
+            store.checkHealth();
 
+            var path = window.location.pathname;
             // Add 'active' class to the corresponding navigation link
             if (path === "/") {
                 $("#nav-dashboard").addClass("active");

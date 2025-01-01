@@ -123,6 +123,7 @@ class JobUpdate(JobBase):
 
 class Job(JobBase):
     id: int
+    name: str
     task: Task
     created_at: datetime
     updated_at: datetime

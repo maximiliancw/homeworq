@@ -30,37 +30,61 @@
     <div class="grid">
         <article>
             <header>
-                <h3>Recent Activity</h3>
+                <h3>Recent Jobs</h3>
             </header>
-            <div class="activity-feed">
-                <template x-if="$store.data.analytics.recentActivity.length === 0">
-                    <p class="text-muted">No recent activity</p>
-                </template>
-                <template x-for="exec in $store.data.analytics.recentActivity" :key="exec.started_at">
-                    <div class="activity-item">
-                        <span x-text="getStatusEmoji(exec.status)"></span>
-                        <span><strong x-text="exec.job.task.name"></strong></span>
-                        <span x-text="formatTimeAgo(exec.started_at)"></span>
-                        <span x-show="exec.duration !== null" x-text="formatDuration(exec.duration)"></span>
-                    </div>
-                </template>
-            </div>
+            <template x-if="$store.data.analytics.recentActivity.length === 0">
+                <p class="text-muted">No recent activity</p>
+            </template>
+            <template x-if="$store.data.analytics.recentActivity.length > 0">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Job</th>
+                            <th scope="col">When</th>
+                            <th scope="col">Duration</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody style="font-size: .75rem">
+                        <template x-for="exec in $store.data.analytics.recentActivity" :key="exec.id">
+                            <tr>
+                                <td>
+                                    <a x-bind:href="`/results/${exec.job.id}`" x-text="exec.job.name"></a>
+                                </td>
+                                <td x-text="formatTimeAgo(exec.started_at)"></td>
+                                <td x-show="exec.duration !== null" x-text="formatDuration(exec.duration)"></td>
+                                <td x-text="getStatusEmoji(exec.status)"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </template>
         </article>
         <article>
             <header>
-                <h3>Upcoming Executions</h3>
+                <h3>Upcoming Jobs</h3>
             </header>
-            <div class="upcoming-list">
-                <template x-if="$store.data.analytics.upcomingExecutions.length === 0">
-                    <p class="text-muted">No upcoming executions</p>
-                </template>
-                <template x-for="job in $store.data.analytics.upcomingExecutions" :key="job.id">
-                    <div class="upcoming-item">
-                        <span><strong x-text="job.task.name"></strong></span>
-                        <span x-text="formatDate(job.next_run)"></span>
-                    </div>
-                </template>
-            </div>
+            <template x-if="$store.data.analytics.upcomingExecutions.length === 0">
+                <p class="text-muted">No upcoming executions</p>
+            </template>
+            <template x-if="$store.data.analytics.upcomingExecutions.length > 0">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Job</th>
+                            <th scope="col">Next Run</th>
+                        </tr>
+                    </thead>
+                    <tbody style="font-size: .75rem">
+                        <template x-for="job in $store.data.analytics.upcomingExecutions" :key="job.id">
+                            <tr>
+                                <td><strong x-text="job.name"></strong></td>
+                                <td x-text="formatDate(job.next_run)"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </template>
         </article>
     </div>
 
@@ -101,84 +125,188 @@
             taskDistribution: null,
             hasExecutionData: false,
             hasDistributionData: false,
+            lastUpdateTime: null,
 
             async init() {
+                // Initial data fetch
                 await Alpine.store('data').fetchAll();
-                this.initCharts();
-                this.updateCharts();
 
-                setInterval(async () => {
+                // Delay chart initialization to ensure DOM and data are ready
+                setTimeout(() => {
+                    this.initCharts();
+                }, 100);
+
+                // Set up interval for updates with cleanup
+                const intervalId = setInterval(async () => {
                     await Alpine.store('data').fetchAll();
-                    this.updateCharts();
+                    if (this.executionHistory && this.taskDistribution) {
+                        this.updateCharts();
+                    }
                 }, 60000);
+
+                // Cleanup on component destroy
+                this.$cleanup = () => {
+                    clearInterval(intervalId);
+                    if (this.executionHistory) {
+                        this.executionHistory.destroy();
+                    }
+                    if (this.taskDistribution) {
+                        this.taskDistribution.destroy();
+                    }
+                };
             },
 
             initCharts() {
-                this.executionHistory = new Chart('executionHistoryChart', {
-                    type: 'line',
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true }
+                const commonOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
                         }
                     }
-                });
+                };
 
-                this.taskDistribution = new Chart('taskDistributionChart', {
-                    type: 'bar',
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, stacked: true },
-                            x: { stacked: true }
+                // Line chart for execution history
+                const ctx1 = document.getElementById('executionHistoryChart');
+                if (ctx1) {
+                    this.executionHistory = new Chart(ctx1, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: []
+                        },
+                        options: {
+                            ...commonOptions,
+                            scales: {
+                                x: {
+                                    type: 'time',
+                                    time: {
+                                        unit: 'day',
+                                        displayFormats: {
+                                            day: 'MMM d'
+                                        }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Date'
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Count'
+                                    }
+                                }
+                            }
                         }
-                    }
-                });
+                    });
+                }
+
+                // Bar chart for task distribution
+                const ctx2 = document.getElementById('taskDistributionChart');
+                if (ctx2) {
+                    this.taskDistribution = new Chart(ctx2, {
+                        type: 'bar',
+                        data: {
+                            labels: [],
+                            datasets: []
+                        },
+                        options: {
+                            ...commonOptions,
+                            scales: {
+                                x: {
+                                    stacked: true
+                                },
+                                y: {
+                                    stacked: true,
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Count'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Initial update
+                this.updateCharts();
             },
 
             updateCharts() {
-                const history = Alpine.store('data').analytics.executionHistory;
-                const distribution = Alpine.store('data').analytics.taskDistribution;
+                const now = Date.now();
+                // Throttle updates to prevent excessive redraws
+                if (this.lastUpdateTime && now - this.lastUpdateTime < 1000) {
+                    return;
+                }
+                this.lastUpdateTime = now;
 
-                if (history?.length > 0) {
+                const history = Alpine.store('data').analytics?.executionHistory || [];
+                const distribution = Alpine.store('data').analytics?.taskDistribution || [];
+
+                // Update execution history chart
+                if (this.executionHistory && history.length > 0) {
                     this.hasExecutionData = true;
-                    this.executionHistory.data = {
-                        labels: history.map(d => d.date),
-                        datasets: [{
-                            label: 'Completed',
-                            data: history.map(d => d.completed),
-                            borderColor: '#10b981',
-                            fill: false
-                        }, {
-                            label: 'Failed',
-                            data: history.map(d => d.failed),
-                            borderColor: '#ef4444',
-                            fill: false
-                        }]
+                    const historyData = {
+                        labels: history.map(d => new Date(d.date)),
+                        datasets: [
+                            {
+                                label: 'Completed',
+                                data: history.map(d => ({
+                                    x: new Date(d.date),
+                                    y: d.completed
+                                })),
+                                borderColor: '#10b981',
+                                backgroundColor: '#10b981',
+                                fill: false,
+                                tension: 0.1
+                            },
+                            {
+                                label: 'Failed',
+                                data: history.map(d => ({
+                                    x: new Date(d.date),
+                                    y: d.failed
+                                })),
+                                borderColor: '#ef4444',
+                                backgroundColor: '#ef4444',
+                                fill: false,
+                                tension: 0.1
+                            }
+                        ]
                     };
-                    this.executionHistory.update();
+                    this.executionHistory.data = historyData;
+                    this.executionHistory.update('none');
                 }
 
-                if (distribution?.length > 0) {
+                // Update task distribution chart
+                if (this.taskDistribution && distribution.length > 0) {
                     this.hasDistributionData = true;
-                    this.taskDistribution.data = {
+                    const distributionData = {
                         labels: distribution.map(d => d.task),
-                        datasets: [{
-                            label: 'Completed',
-                            data: distribution.map(d => d.completed),
-                            backgroundColor: '#10b981'
-                        }, {
-                            label: 'Failed',
-                            data: distribution.map(d => d.failed),
-                            backgroundColor: '#ef4444'
-                        }]
+                        datasets: [
+                            {
+                                label: 'Completed',
+                                data: distribution.map(d => d.completed),
+                                backgroundColor: '#10b981'
+                            },
+                            {
+                                label: 'Failed',
+                                data: distribution.map(d => d.failed),
+                                backgroundColor: '#ef4444'
+                            }
+                        ]
                     };
-                    this.taskDistribution.update();
+                    this.taskDistribution.data = distributionData;
+                    this.taskDistribution.update('none');
                 }
             },
 
+            // Rest of your utility functions remain the same
             getStatusEmoji(status) {
                 return {
                     'COMPLETED': '✅',
@@ -210,6 +338,10 @@
 
             formatDuration(seconds) {
                 return `${seconds.toFixed(1)}s`;
+            },
+
+            formatDate(date) {
+                return new Date(date).toLocaleString();
             }
         };
     }

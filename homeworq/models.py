@@ -83,6 +83,7 @@ class Job(BaseModel):
 
         return JobSchema(
             id=self.id,
+            name=str(self),
             task=get_registered_task(self.task_name),
             params=self.params,
             options=options,
@@ -117,6 +118,33 @@ class Job(BaseModel):
                 self.schedule_at = job_update.schedule.at
 
         await self.save()
+
+    def __str__(self) -> str:
+        """Generate a human-readable name from task name and schedule"""
+        base_name = self.task_name.replace("_", " ").title()
+
+        if self.schedule_cron:
+            return f"Run {base_name} on cron schedule '{self.schedule_cron}'"
+
+        if not (self.schedule_interval and self.schedule_unit):
+            return base_name
+
+        # Handle interval-based schedule
+        interval_str = str(self.schedule_interval)
+        unit_str = self.schedule_unit.value.lower()
+
+        # Make unit plural if interval > 1
+        if self.schedule_interval > 1:
+            unit_str += "s"
+
+        # Build schedule description
+        schedule_str = f"every {interval_str} {unit_str}"
+
+        # Add specific time if provided
+        if self.schedule_at:
+            schedule_str += f" at {self.schedule_at}"
+
+        return f"{base_name} {schedule_str}"
 
 
 class JobDependency(BaseModel):

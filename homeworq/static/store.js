@@ -63,20 +63,29 @@ document.addEventListener("alpine:init", () => {
     async fetchAnalytics() {
       try {
         const [activity, upcoming, history, distribution] = await Promise.all([
-          fetch("/api/analytics/recent-activity").then((r) => r.json()),
-          fetch("/api/analytics/upcoming-executions").then((r) => r.json()),
-          fetch("/api/analytics/execution-history").then((r) => r.json()),
-          fetch("/api/analytics/task-distribution").then((r) => r.json()),
+          fetch("/api/analytics/recent-activity")
+            .then((r) => r.json())
+            .catch(() => []),
+          fetch("/api/analytics/upcoming-executions")
+            .then((r) => r.json())
+            .catch(() => []),
+          fetch("/api/analytics/execution-history")
+            .then((r) => r.json())
+            .catch(() => []),
+          fetch("/api/analytics/task-distribution")
+            .then((r) => r.json())
+            .catch(() => []),
         ]);
 
         this.analytics = {
-          recentActivity: activity,
-          upcomingExecutions: upcoming,
-          executionHistory: history,
-          taskDistribution: distribution,
+          recentActivity: activity || [],
+          upcomingExecutions: upcoming || [],
+          executionHistory: history || [],
+          taskDistribution: distribution || [],
         };
       } catch (error) {
         console.error("Error fetching analytics:", error);
+        // Maintain default empty arrays on error
       }
     },
     async checkHealth() {

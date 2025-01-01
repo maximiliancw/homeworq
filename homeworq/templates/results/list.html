@@ -7,7 +7,6 @@
         <thead>
             <tr>
                 <th>Job</th>
-                <th>Task</th>
                 <th>Started At</th>
                 <th>Duration</th>
                 <th>Status</th>
@@ -22,19 +21,18 @@
     function resultsTable() {
         return {
             table: null,
+            initialized: false,
 
             async init() {
+                if (this.initialized) return;
+
                 this.table = $('#resultsTable').DataTable({
                     ajax: {
                         url: "/api/results",
-                        dataSrc: ''
+                        dataSrc: 'items'
                     },
                     columns: [
-                        {
-                            data: "job.id",
-                            render: (data, type, row) => `<kbd>${data}</kbd>`
-                        },
-                        { data: "job.task.name" },
+                        { data: "job.name" },
                         {
                             data: "started_at",
                             render: data => data ? new Date(data).toLocaleString() : 'N/A'
@@ -58,10 +56,14 @@
                     order: [[2, 'desc']]
                 });
 
-                // Use store for periodic updates
+                this.initialized = true;
+
+                // Set up periodic updates without reinitializing
                 setInterval(() => {
-                    Alpine.store('data').fetchExecutions();
-                    this.table.ajax.reload(null, false);
+                    if (this.table) {
+                        Alpine.store('data').fetchExecutions();
+                        this.table.ajax.reload(null, false);
+                    }
                 }, 30000);
             },
 
@@ -74,18 +76,6 @@
                 }[status] || '❔';
             }
         }
-    }
-
-    function showDetails(jobUid, details) {
-        const modal = document.getElementById('modal');
-        modal.querySelector('.modal-title').innerText = `Execution Details: ${jobUid}`;
-        modal.querySelector('.modal-body').innerText = details;
-        modal.showModal();
-    }
-
-    function closeModal() {
-        const modal = document.getElementById('modal');
-        modal.close();
     }
 </script>
 {% endblock %}

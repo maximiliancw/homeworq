@@ -114,3 +114,117 @@ tbody {
   font-weight: bold;
   color: var(--pico-color-red-500);
 }
+
+/* Hide hamburger menu items by default */
+.nav-mobile-items {
+  display: none;
+}
+
+/* Style for active mobile navigation items */
+.nav-mobile-items a.active {
+  background-color: var(--pico-primary-background);
+  color: var(--pico-primary-inverse);
+  border-radius: var(--pico-border-radius);
+}
+
+/* Hover effect for non-active mobile items */
+.nav-mobile-items a:not(.active):hover {
+  background-color: var(--pico-primary-hover-background);
+  color: var(--pico-primary-inverse);
+  border-radius: var(--pico-border-radius);
+}
+
+/* Make sure the active state is more prominent than secondary class */
+.nav-mobile-items a.active.secondary {
+  opacity: 1;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  #nav-links {
+    display: none;
+  }
+
+  .nav-mobile-items {
+    display: block;
+  }
+}
+
+.stat-card {
+  position: relative;
+  padding: 1.5rem;
+  overflow: hidden;
+  border: none;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--pico-primary);
+  color: white;
+}
+
+.stat-card h3 {
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0;
+  opacity: 0.9;
+  position: relative;
+  color: inherit;
+}
+
+.stat-card .value {
+  font-size: 3rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+  line-height: 1;
+  color: inherit;
+}
+
+.stat-card .status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+}
+
+.status::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  background: rgba(255, 255, 255, 0.8);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Hover effect */
+.stat-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}

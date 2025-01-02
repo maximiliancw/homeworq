@@ -3,28 +3,32 @@
 
 {% block content %}
 <div x-data="dashboard()" x-init="init()" class="container">
-    <!-- Summary Metrics -->
-    <div class="grid">
-        <article>
+
+    <section class="grid">
+        <!-- Tasks Card -->
+        <article class="stat-card">
             <h3>Tasks</h3>
-            <span x-text="$store.data.metrics.totalTasks || '-'"></span>
+            <p class="value" x-text="$store.data.metrics.totalTasks || '-'"></p>
         </article>
-        <article>
+
+        <!-- Jobs Card -->
+        <article class="stat-card">
             <h3>Jobs</h3>
-            <span x-text="$store.data.metrics.activeJobs || '-'"></span>
+            <p class="value" x-text="$store.data.metrics.activeJobs || '-'"></p>
         </article>
-        <article>
+
+        <!-- Logs Card -->
+        <article class="stat-card">
             <h3>Logs</h3>
-            <span x-text="$store.data.metrics.totalExecutions || '-'"></span>
+            <p class="value" x-text="$store.data.metrics.totalExecutions || '-'"></p>
         </article>
-        <article>
-            <h3>Health</h3>
-            <kbd x-bind:class="$store.data.health.healthy ? 'pico-background-green-500' : 'pico-background-red-500'"
-                x-text="$store.data.health.healthy ? '100%' : '75%'">
-                unknown
-            </kbd>
+
+        <!-- Health Card -->
+        <article class="stat-card">
+            <h3>Errors</h3>
+            <p class="value" x-text="$store.data.health.healthy ? '0%' : '75%'"></p>
         </article>
-    </div>
+    </section>
 
     <section>
         <article>

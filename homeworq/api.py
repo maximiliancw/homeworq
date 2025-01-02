@@ -11,19 +11,30 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .core import Homeworq
-from .schemas import Job, JobCreate, JobExecution, JobUpdate, PaginatedResponse
+from .schemas import Job, JobCreate, JobUpdate, Log, PaginatedResponse
 from .tasks import Task, get_registered_task, get_registered_tasks
 
 logger = logging.getLogger(__name__)
+
+API_DESCRIPTION = """
+This is the API documentation for **homeworq**.
+It's built on top of the OpenAPI standard and provides
+a RESTful interface for consuming/managing tasks, jobs, and logs.
+
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+"""
 
 
 async def create_api(hq: Homeworq) -> FastAPI:
     app = FastAPI(
         title="homeworq",
-        description="Task scheduling and job management API",
+        description=API_DESCRIPTION,
+        summary="A self-contained, async-first task scheduling system with an integrated JSON API and web interface. Built with Python 3.13+.",
         version="1.0.0",
         docs_url="/api/docs",
-        redoc_url="/api/redoc",
+        redoc_url=None,
         openapi_url="/api/openapi.json",
     )
 
@@ -86,14 +97,15 @@ async def create_api(hq: Homeworq) -> FastAPI:
 
     @app.get("/api/analytics/recent-activity", tags=["Analytics"])
     async def get_recent_activity():
-        """Get recent job executions for the activity feed."""
-        results = await app.state.hq.get_job_executions(skip=0, limit=3)
+        """Get recent job logs for the activity feed."""
+        results = await app.state.hq.list_logs(skip=0, limit=3)
         return sorted(results, key=lambda x: x.started_at, reverse=True)
 
     @app.get("/api/analytics/upcoming-executions", tags=["Analytics"])
     async def get_upcoming_executions():
         """Get upcoming scheduled job executions."""
-        jobs = await app.state.hq.list_jobs(offset=0, limit=3)
+        hq: Homeworq = app.state.hq
+        jobs = await hq.list_jobs(offset=0, limit=3)
         now = datetime.now(timezone.utc)
         return [job for job in jobs if job.next_run and job.next_run > now]
 
@@ -103,7 +115,7 @@ async def create_api(hq: Homeworq) -> FastAPI:
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=30)
 
-        executions = await app.state.hq.get_job_executions(skip=0, limit=100)
+        executions = await app.state.hq.list_logs(skip=0, limit=100)
 
         filtered_executions = [
             e
@@ -129,7 +141,7 @@ async def create_api(hq: Homeworq) -> FastAPI:
     @app.get("/api/analytics/task-distribution", tags=["Analytics"])
     async def get_task_distribution():
         """Get task execution distribution."""
-        executions = await app.state.hq.get_job_executions(skip=0, limit=1000)
+        executions = await app.state.hq.list_logs(skip=0, limit=1000)
 
         distribution = defaultdict(lambda: {"total": 0, "completed": 0, "failed": 0})
 
@@ -206,14 +218,14 @@ async def create_api(hq: Homeworq) -> FastAPI:
     # Results endpoints
     @app.get(
         "/api/logs",
-        response_model=PaginatedResponse[JobExecution],
-        tags=["Results"],
+        response_model=PaginatedResponse[Log],
+        tags=["Logs"],
     )
     async def list_logs(
         offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000)
     ):
         """List all job execution logs with pagination."""
-        logs = await app.state.hq.get_job_executions(
+        logs = await app.state.hq.list_logs(
             skip=offset,
             limit=limit,
         )
@@ -227,8 +239,8 @@ async def create_api(hq: Homeworq) -> FastAPI:
 
     @app.get(
         "/api/logs/{job_id}",
-        response_model=PaginatedResponse[JobExecution],
-        tags=["Results"],
+        response_model=PaginatedResponse[Log],
+        tags=["Logs"],
     )
     async def get_job_logs(
         job_id: int,
@@ -236,7 +248,7 @@ async def create_api(hq: Homeworq) -> FastAPI:
         limit: int = Query(100, ge=1, le=1000),
     ):
         """Get paginated execution logs for a specific job."""
-        logs = await app.state.hq.get_job_executions(
+        logs = await app.state.hq.list_logs(
             job_id,
             skip=offset,
             limit=limit,

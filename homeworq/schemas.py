@@ -124,7 +124,7 @@ class Job(JobBase):
     next_run: Optional[datetime] = None
 
 
-class JobExecutionBase(BaseModel):
+class LogBase(BaseModel):
     job_id: int
     status: Status
     started_at: datetime
@@ -135,11 +135,11 @@ class JobExecutionBase(BaseModel):
     retries: int = 0
 
 
-class JobExecutionCreate(JobExecutionBase):
+class LogCreate(LogBase):
     pass
 
 
-class JobExecution(JobExecutionBase):
+class Log(LogBase):
     id: int
     created_at: datetime
     job: Job

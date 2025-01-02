@@ -3,9 +3,9 @@ from datetime import datetime
 from tortoise import fields, models
 
 from .schemas import Job as JobSchema
-from .schemas import JobCreate
-from .schemas import JobExecution as JobExecutionSchema
-from .schemas import JobOptions, JobSchedule, Status, TimeUnit
+from .schemas import JobCreate, JobOptions, JobSchedule
+from .schemas import Log as LogSchema
+from .schemas import Status, TimeUnit
 from .tasks import get_registered_task
 
 
@@ -147,8 +147,8 @@ class Job(BaseModel):
         return f"{base_name} {schedule_str}"
 
 
-class JobExecution(BaseModel):
-    job = fields.ForeignKeyField("models.Job", related_name="executions")
+class Log(BaseModel):
+    job = fields.ForeignKeyField("models.Job", related_name="logs")
     status = fields.CharEnumField(Status)
     started_at = fields.DatetimeField()
     completed_at = fields.DatetimeField(null=True)
@@ -160,9 +160,9 @@ class JobExecution(BaseModel):
     class Meta:
         table = "hq_logs"
 
-    async def to_schema(self) -> JobExecutionSchema:
+    async def to_schema(self) -> LogSchema:
         """Convert DB model to Pydantic schema"""
-        return JobExecutionSchema(
+        return LogSchema(
             id=self.id,
             job_id=self.job.id,
             job=await self.job.to_schema(),
@@ -177,7 +177,7 @@ class JobExecution(BaseModel):
         )
 
     @classmethod
-    async def from_schema(cls, schema: JobExecutionSchema) -> "JobExecution":
+    async def from_schema(cls, schema: LogSchema) -> "Log":
         """Create model from schema"""
         return await cls.create(
             job_id=schema.job_id,

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from tortoise import Tortoise
 
-from .models import JobExecution
+from .models import Log
 from .schemas import Status
 
 logger = logging.getLogger(__name__)
@@ -56,13 +56,13 @@ class Database:
         """Async context manager exit"""
         await self.disconnect()
 
-    async def store_execution(self, execution: JobExecution) -> int:
-        """Store a job execution result"""
+    async def save_log(self, log_data: Log) -> int:
+        """Log a job execution result"""
         if not self._connected:
             raise RuntimeError("Database not connected")
 
         try:
-            execution_model = await JobExecution.from_schema(execution)
+            execution_model = await Log.from_schema(log_data)
             return execution_model.id
 
         except Exception as e:
@@ -82,7 +82,7 @@ class Database:
 
         try:
             # Start building query
-            query = JobExecution.filter(job__id=job_id)
+            query = Log.filter(job__id=job_id)
 
             if status:
                 query = query.filter(status=status)
@@ -103,14 +103,14 @@ class Database:
             logger.error(f"Failed to get job history: {str(e)}")
             raise
 
-    async def get_last_execution(self, job_id: str) -> Optional[JobExecution]:
-        """Get the last execution of a job"""
+    async def get_latest_log(self, job_id: str) -> Optional[Log]:
+        """Get the latest log of a job"""
         if not self._connected:
             raise RuntimeError("Database not connected")
 
         try:
             execution = (
-                await JobExecution.filter(job__id=job_id)
+                await Log.filter(job__id=job_id)
                 .order_by("-started_at")
                 .first()
                 .prefetch_related("job")
@@ -133,7 +133,7 @@ class Database:
 
         try:
             # Build query
-            query = JobExecution.filter(status=Status.FAILED)
+            query = Log.filter(status=Status.FAILED)
 
             if since:
                 query = query.filter(started_at__gte=since)
@@ -159,7 +159,7 @@ class Database:
 
         try:
             cutoff = datetime.now() - timedelta(days=days)
-            await JobExecution.filter(created_at__lt=cutoff).delete()
+            await Log.filter(created_at__lt=cutoff).delete()
 
         except Exception as e:
             logger.error(f"Failed to cleanup old records: {str(e)}")

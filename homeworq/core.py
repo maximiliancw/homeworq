@@ -8,11 +8,12 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from .db import Database
-from .models import Job, JobExecution
+from .log_config import get_uvicorn_log_config, setup_logging
+from .models import Job, Log
 from .schemas import Job as JobSchema
-from .schemas import JobCreate
-from .schemas import JobExecution as JobExecutionSchema
-from .schemas import JobUpdate, Settings, Status, TimeUnit
+from .schemas import JobCreate, JobUpdate
+from .schemas import Log as LogSchema
+from .schemas import Settings, Status, TimeUnit
 from .tasks import execute_task
 
 logger = logging.getLogger(__name__)
@@ -48,24 +49,8 @@ class Homeworq(BaseModel):
         super().model_post_init(__context)
         self._job_runners = {}
         self._job_locks = {}
-        self._setup_logging()
+        setup_logging(self.settings.log_path, self.settings.debug)
         self._api = None
-
-    def _setup_logging(self) -> None:
-        """Configure logging based on settings."""
-        if self.settings.log_path:
-            handler = logging.FileHandler(self.settings.log_path)
-        else:
-            handler = logging.StreamHandler()
-
-        fstring = "%(levelname)s:\t%(asctime)s\t%(message)s"
-        formatter = logging.Formatter(fstring)
-        handler.setFormatter(formatter)
-        level = logging.DEBUG if self.settings.debug else logging.INFO
-
-        logger.setLevel(level)
-        handler.setLevel(level)
-        logger.addHandler(handler)
 
     async def _init_api(self) -> FastAPI:
         """Initialize FastAPI instance."""
@@ -86,7 +71,8 @@ class Homeworq(BaseModel):
             self._api,
             host=self.settings.api_host,
             port=self.settings.api_port,
-            log_level=logger.level,
+            log_config=get_uvicorn_log_config(),
+            log_level="debug" if self.settings.debug else "info",
         )
 
         server = uvicorn.Server(config)
@@ -98,7 +84,7 @@ class Homeworq(BaseModel):
             self.settings.api_port,
         )
 
-    async def _execute_job(self, job: Job) -> JobExecution:
+    async def _execute_job(self, job: Job) -> Log:
         """
         Execute a job with retry logic.
 
@@ -109,7 +95,7 @@ class Homeworq(BaseModel):
             JobExecution instance with execution results
         """
         now = datetime.now(timezone.utc)
-        execution = await JobExecution.create(
+        execution = await Log.create(
             job=job,
             status=Status.RUNNING,
             started_at=now,
@@ -173,7 +159,7 @@ class Homeworq(BaseModel):
 
         # Store execution in database
         if self._db:
-            await self._db.store_execution(execution)
+            await self._db.save_log(execution)
 
         return execution
 
@@ -237,9 +223,7 @@ class Homeworq(BaseModel):
         if job.end_date and now > job.end_date:
             return False
 
-        last_execution = (
-            await JobExecution.filter(job_id=job.id).order_by("-started_at").first()
-        )
+        last_execution = await Log.filter(job_id=job.id).order_by("-started_at").first()
         if not last_execution:
             return True
 
@@ -405,7 +389,7 @@ class Homeworq(BaseModel):
         Returns:
             JobSchema instance of the created or updated job.
         """
-        # Check if the job exists based on a unique identifier (e.g., task_name)
+        # TODO: Check if the job exists based on the task name AND schedule
         existing_job = await Job.filter(task_name=job_create.task).first()
 
         if existing_job:
@@ -437,18 +421,21 @@ class Homeworq(BaseModel):
         Args:
             job_id: ID of job to delete
         """
-        await JobExecution.filter(job_id=job_id).delete()
+        await Log.filter(job_id=job_id).delete()
         await Job.filter(id=job_id).delete()
 
         if job_id in self._job_runners:
             self._job_runners[job_id].cancel()
             del self._job_runners[job_id]
 
-    async def get_job_executions(
-        self, job_id: int = None, skip: int = 0, limit: int = 100
-    ) -> List[JobExecutionSchema]:
+    async def list_logs(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        **filters,
+    ) -> List[LogSchema]:
         """
-        Get execution history for a job or all jobs.
+        Get logs for a specific job or for all jobs.
 
         Args:
             job_id: ID of job to get history for
@@ -458,16 +445,16 @@ class Homeworq(BaseModel):
         Returns:
             List of JobExecutionSchema instances
         """
-        if job_id:
+        if len(filters) > 0:
             executions = (
-                await JobExecution.filter(job_id=job_id)
+                await Log.filter(**filters)
                 .order_by("-started_at")
                 .offset(skip)
                 .limit(limit)
             )
         else:
             executions = (
-                await JobExecution.all()
+                await Log.all()
                 .prefetch_related("job")
                 .order_by("-started_at")
                 .offset(skip)
@@ -475,6 +462,26 @@ class Homeworq(BaseModel):
             )
 
         return [await execution.to_schema() for execution in executions]
+
+    async def get_log(self, log_id: int) -> LogSchema:
+        """
+        Retrieve a log by its ID.
+
+        Args:
+            log_id: ID of the log to retrieve.
+
+        Returns:
+            homeworq.schemas.Log: Instance representing the log.
+
+        Raises:
+            ValueError: If the job with the given ID does not exist.
+        """
+        log = await Log.filter(id=log_id).first()
+
+        if not log:
+            raise ValueError(f"Log with ID '{log_id}' not found")
+
+        return await log.to_schema()
 
     async def start(self) -> None:
         """Start the scheduler and API server."""
@@ -497,7 +504,6 @@ class Homeworq(BaseModel):
 
         # Create default jobs if any
         for job_create in self.defaults:
-            logger.debug(f"MODEL DUMP: {job_create.model_dump()}")
             await self.upsert_job(job_create)
 
     async def stop(self) -> None:

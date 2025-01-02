@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
-from .core import Homeworq
+from .core import HQ
 from .schemas import Settings
 
 # Initialize Typer app
@@ -171,7 +171,7 @@ def run(
         )
 
         # Run Homeworq
-        Homeworq.run(settings=settings, defaults=jobs)
+        HQ.run(settings=settings, defaults=jobs)
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutting down...[/yellow]")

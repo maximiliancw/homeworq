@@ -7,19 +7,15 @@ from typing import Dict, List, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from .db import Database
+from . import models
 from .log_config import get_uvicorn_log_config, setup_logging
-from .models import Job, Log
-from .schemas import Job as JobSchema
-from .schemas import JobCreate, JobUpdate
-from .schemas import Log as LogSchema
-from .schemas import Settings, Status, TimeUnit
+from .schemas import Job, JobCreate, Log, Settings, Status, TimeUnit
 from .tasks import execute_task
 
 logger = logging.getLogger(__name__)
 
 
-class Homeworq(BaseModel):
+class HQ(BaseModel):
     """
     Main scheduler class that handles job execution and management.
 
@@ -35,22 +31,13 @@ class Homeworq(BaseModel):
     """
 
     settings: Settings
-    defaults: List[JobCreate] = []
+    defaults: List[JobCreate]
     _running: bool = False
-    _db: Optional["Database"] = None
     _beat: Optional[asyncio.Task] = None
     _api_runner: Optional[asyncio.Task] = None
     _api: Optional[FastAPI] = None
     _job_locks: Dict[int, asyncio.Lock] = {}
     _job_runners: Dict[int, asyncio.Task] = {}
-
-    def model_post_init(self, __context) -> None:
-        """Initialize instance after Pydantic model creation."""
-        super().model_post_init(__context)
-        self._job_runners = {}
-        self._job_locks = {}
-        setup_logging(self.settings.log_path, self.settings.debug)
-        self._api = None
 
     async def _init_api(self) -> FastAPI:
         """Initialize FastAPI instance."""
@@ -84,18 +71,89 @@ class Homeworq(BaseModel):
             self.settings.api_port,
         )
 
-    async def _execute_job(self, job: Job) -> Log:
-        """
-        Execute a job with retry logic.
+    def model_post_init(self, __context) -> None:
+        """Initialize instance after Pydantic model creation."""
+        super().model_post_init(__context)
+        self._job_runners = {}
+        self._job_locks = {}
+        setup_logging(self.settings.log_path, self.settings.debug)
+        self._api = None
 
-        Args:
-            job: Job instance to execute
+    async def _calculate_next_run(self, job: Job) -> datetime:
+        """Calculate the next run time for a job based on its schedule."""
+        now = datetime.now(timezone.utc)  # Use UTC consistently
 
-        Returns:
-            JobExecution instance with execution results
-        """
+        if job.schedule_cron:
+            raise NotImplementedError("Cron scheduling not implemented")
+
+        if job.schedule_at:
+            # Parse time in UTC
+            hour, minute = map(int, job.schedule_at.split(":"))
+            next_run = now.replace(
+                hour=hour,
+                minute=minute,
+                second=0,
+                microsecond=0,
+            )
+
+            # If the time has passed for today, move to next interval
+            if next_run <= now:
+                if job.schedule_unit == TimeUnit.DAYS:
+                    next_run += timedelta(days=job.schedule_interval)
+                elif job.schedule_unit == TimeUnit.WEEKS:
+                    next_run += timedelta(weeks=job.schedule_interval)
+                else:
+                    raise ValueError(
+                        "Time-of-day scheduling only for daily/weekly jobs"
+                    )
+
+            return next_run
+
+        # Handle interval-based scheduling
+        if not job.schedule_unit or not job.schedule_interval:
+            raise ValueError("Job must have either interval or cron schedule")
+
+        interval = {job.schedule_unit.value: job.schedule_interval}
+        return now + timedelta(**interval)
+
+    async def _can_run_job(self, job: Job) -> bool:
+        """Check if a job is eligible to run."""
         now = datetime.now(timezone.utc)
-        execution = await Log.create(
+
+        # Check date constraints
+        if job.start_date and now < job.start_date:
+            return False
+        if job.end_date and now > job.end_date:
+            return False
+
+        # Check last execution
+        last_execution = (
+            await models.Log.filter(job_id=job.id).order_by("-started_at").first()
+        )
+        if not last_execution:
+            return True
+
+        # If job has a next_run time, use that
+        if job.next_run:
+            return now >= job.next_run
+
+        # Calculate next run based on last execution
+        try:
+            next_run = await self._calculate_next_run(job)
+            return now >= next_run
+        except Exception as e:
+            logger.error(f"Error calculating next run for job {job.id}: {str(e)}")
+            return False
+
+    async def _execute_job(self, job: Job) -> Log:
+        """Execute a job with retry logic."""
+        now = datetime.now(timezone.utc)
+
+        # Update job's last_run time
+        job.last_run = now
+        await job.save()
+
+        execution = await models.Log.create(
             job=job,
             status=Status.RUNNING,
             started_at=now,
@@ -143,7 +201,6 @@ class Homeworq(BaseModel):
 
             retry_count += 1
             if retry_count <= max_retries:
-                # Exponential backoff with jitter
                 delay = min(300, (2**retry_count) + random.uniform(0, 1))
                 await asyncio.sleep(delay)
 
@@ -157,86 +214,10 @@ class Homeworq(BaseModel):
         ).total_seconds()
         await execution.save()
 
-        # Store execution in database
-        if self._db:
-            await self._db.save_log(execution)
-
         return execution
 
-    async def _calculate_next_run(self, job: Job) -> datetime:
-        """
-        Calculate the next run time for a job based on its schedule.
-
-        Args:
-            job: Job instance
-
-        Returns:
-            datetime of next scheduled run
-
-        Raises:
-            ValueError: If schedule configuration is invalid
-            NotImplementedError: For unimplemented cron scheduling
-        """
-        now = datetime.now()
-
-        if job.schedule_cron:
-            # TODO: Implement cron parsing
-            raise NotImplementedError("Cron scheduling not implemented")
-
-        if job.schedule_at:
-            hour, minute = map(int, job.schedule_at.split(":"))
-            next_run = now.replace(
-                hour=hour,
-                minute=minute,
-                second=0,
-                microsecond=0,
-            )
-
-            if next_run <= now:
-                if job.schedule_unit == TimeUnit.DAYS:
-                    next_run += timedelta(days=job.schedule_interval)
-                elif job.schedule_unit == TimeUnit.WEEKS:
-                    next_run += timedelta(weeks=job.schedule_interval)
-                else:
-                    raise ValueError(
-                        "Time-of-day scheduling only for daily/weekly jobs"
-                    )
-
-            return next_run
-
-        interval = {job.schedule_unit.value: job.schedule_interval}
-        return now + timedelta(**interval)
-
-    async def _can_run_job(self, job: Job) -> bool:
-        """
-        Check if a job is eligible to run based on its schedule and constraints.
-
-        Args:
-            job: Job instance to check
-
-        Returns:
-            bool indicating if job can run
-        """
-        now = datetime.now()
-        if job.start_date and now < job.start_date:
-            return False
-        if job.end_date and now > job.end_date:
-            return False
-
-        last_execution = await Log.filter(job_id=job.id).order_by("-started_at").first()
-        if not last_execution:
-            return True
-
-        next_run = await self._calculate_next_run(job)
-        return next_run <= now
-
     async def _run_job_scheduler(self, job: Job) -> None:
-        """
-        Run scheduler loop for a single job.
-
-        Args:
-            job: Job instance to schedule
-        """
+        """Run scheduler loop for a single job."""
         lock = self._job_locks.get(job.id) or asyncio.Lock()
         self._job_locks[job.id] = lock
 
@@ -244,26 +225,40 @@ class Homeworq(BaseModel):
             try:
                 async with lock:
                     if await self._can_run_job(job):
+                        # Execute job
                         await self._execute_job(job)
+
+                        # Calculate and save next run time
                         job.next_run = await self._calculate_next_run(job)
                         await job.save()
 
-                        delta = job.next_run - datetime.now()
-                        sleep_time = (delta).total_seconds()
+                    # Calculate sleep time
+                    if job.next_run:
+                        now = datetime.now(timezone.utc)
+                        sleep_time = max(0, (job.next_run - now).total_seconds())
                         if sleep_time > 0:
                             await asyncio.sleep(sleep_time)
+                    else:
+                        # If we can't determine next run time, use a default interval
+                        await asyncio.sleep(60)
 
             except Exception as e:
                 logger.error(
                     f"Job scheduler error for {job.id}: {str(e)}", exc_info=True
                 )
-                await asyncio.sleep(60)  # Wait before retrying
+                # Add a delay before retrying on error
+                await asyncio.sleep(60)
 
     async def _scheduler_loop(self) -> None:
         """Main scheduler loop that manages all job schedulers."""
         while self._running:
             try:
-                jobs = await Job.all()
+                # Get all active jobs
+                jobs = await models.Job.filter(end_date__isnull=True).prefetch_related(
+                    "logs"
+                )
+
+                # Start schedulers for new jobs
                 for job in jobs:
                     if (
                         job.id not in self._job_runners
@@ -287,6 +282,8 @@ class Homeworq(BaseModel):
                             )
                         finally:
                             del self._job_runners[job_id]
+                            if job_id in self._job_locks:
+                                del self._job_locks[job_id]
 
                 await asyncio.sleep(1)
 
@@ -294,203 +291,10 @@ class Homeworq(BaseModel):
                 logger.error(f"Main scheduler error: {str(e)}", exc_info=True)
                 await asyncio.sleep(1)
 
-    async def list_jobs(
-        self,
-        limit: int = 100,
-        offset: int = 0,
-        task: Optional[str] = None,
-    ) -> List[JobSchema]:
-        """
-        List jobs with pagination and optional filtering by task name.
-
-        Args:
-            limit: Maximum number of jobs to return.
-            offset: Number of jobs to skip.
-            task: Optional task name to filter jobs.
-
-        Returns:
-            List of JobSchema instances.
-        """
-        query = Job.all()
-
-        if task:
-            query = query.filter(task_name=task)
-
-        jobs = await query.offset(offset).limit(limit)
-        return [await job.to_schema() for job in jobs]
-
-    async def get_job(self, job_id: int) -> JobSchema:
-        """
-        Retrieve a job by its ID.
-
-        Args:
-            job_id: ID of the job to retrieve.
-
-        Returns:
-            JobSchema instance representing the job.
-
-        Raises:
-            ValueError: If the job with the given ID does not exist.
-        """
-        job = await Job.filter(id=job_id).first()
-
-        if not job:
-            raise ValueError(f"Job with ID '{job_id}' not found")
-
-        return await job.to_schema()
-
-    async def create_job(self, job_create: JobCreate) -> JobSchema:
-        """
-        Create a new job.
-
-        Args:
-            job_create: JobCreate instance with job configuration
-
-        Returns:
-            JobSchema instance of created job
-        """
-        job = await Job.from_schema(job_create)
-        await job.save()
-        return await job.to_schema()
-
-    async def update_job(
-        self,
-        job_id: int,
-        job_update: JobUpdate,
-    ) -> JobSchema:
-        """
-        Update an existing job.
-
-        Args:
-            job_id: ID of job to update
-            job_update: JobUpdate instance with updated configuration
-
-        Returns:
-            JobSchema instance of updated job
-        """
-        job = await Job.get(id=job_id)
-        await job.update_from_schema(job_update)
-
-        if job_id in self._job_runners:
-            self._job_runners[job_id].cancel()
-            self._job_runners[job_id] = asyncio.create_task(
-                self._run_job_scheduler(job)
-            )
-
-        return job.to_schema()
-
-    async def upsert_job(self, job_create: JobCreate) -> JobSchema:
-        """
-        Upsert a job: update if it exists, or create a new job.
-
-        Args:
-            job_create: JobCreate instance with job configuration.
-
-        Returns:
-            JobSchema instance of the created or updated job.
-        """
-        # TODO: Check if the job exists based on the task name AND schedule
-        existing_job = await Job.filter(task_name=job_create.task).first()
-
-        if existing_job:
-            # Update the existing job
-            job_update = JobUpdate(**job_create.model_dump())
-            await existing_job.update_from_schema(job_update)
-            await existing_job.save()
-
-            # Restart the job scheduler if necessary
-            if existing_job.id in self._job_runners:
-                self._job_runners[existing_job.id].cancel()
-                self._job_runners[existing_job.id] = asyncio.create_task(
-                    self._run_job_scheduler(existing_job)
-                )
-
-            logger.info(f"Updated existing job: {existing_job.id}")
-            return await existing_job.to_schema()
-
-        # Otherwise, create a new job
-        new_job = await Job.from_schema(job_create)
-        await new_job.save()
-        logger.info(f"Created new job: {new_job.id}")
-        return await new_job.to_schema()
-
-    async def delete_job(self, job_id: int) -> None:
-        """
-        Delete a job and its related data.
-
-        Args:
-            job_id: ID of job to delete
-        """
-        await Log.filter(job_id=job_id).delete()
-        await Job.filter(id=job_id).delete()
-
-        if job_id in self._job_runners:
-            self._job_runners[job_id].cancel()
-            del self._job_runners[job_id]
-
-    async def list_logs(
-        self,
-        skip: int = 0,
-        limit: int = 100,
-        **filters,
-    ) -> List[LogSchema]:
-        """
-        Get logs for a specific job or for all jobs.
-
-        Args:
-            job_id: ID of job to get history for
-            skip: Number of records to skip
-            limit: Maximum number of records to return
-
-        Returns:
-            List of JobExecutionSchema instances
-        """
-        if len(filters) > 0:
-            executions = (
-                await Log.filter(**filters)
-                .order_by("-started_at")
-                .offset(skip)
-                .limit(limit)
-            )
-        else:
-            executions = (
-                await Log.all()
-                .prefetch_related("job")
-                .order_by("-started_at")
-                .offset(skip)
-                .limit(limit)
-            )
-
-        return [await execution.to_schema() for execution in executions]
-
-    async def get_log(self, log_id: int) -> LogSchema:
-        """
-        Retrieve a log by its ID.
-
-        Args:
-            log_id: ID of the log to retrieve.
-
-        Returns:
-            homeworq.schemas.Log: Instance representing the log.
-
-        Raises:
-            ValueError: If the job with the given ID does not exist.
-        """
-        log = await Log.filter(id=log_id).first()
-
-        if not log:
-            raise ValueError(f"Log with ID '{log_id}' not found")
-
-        return await log.to_schema()
-
     async def start(self) -> None:
         """Start the scheduler and API server."""
         if self._running:
             return
-
-        # Initialize database
-        self._db = Database(self.settings.db_uri)
-        await self._db.connect()
 
         # Initialize API server
         if self.settings.api_on:
@@ -504,7 +308,7 @@ class Homeworq(BaseModel):
 
         # Create default jobs if any
         for job_create in self.defaults:
-            await self.upsert_job(job_create)
+            await models.Job.from_schema(job_create, is_default=True)
 
     async def stop(self) -> None:
         """Stop the scheduler and API server."""
@@ -552,12 +356,13 @@ class Homeworq(BaseModel):
         return self._running
 
     @classmethod
-    async def init_db(cls) -> None:
+    async def _init_db(cls, db_uri) -> None:
         """Initialize database connection."""
         from tortoise import Tortoise
 
         await Tortoise.init(
-            db_url="sqlite://db.sqlite3", modules={"models": ["homeworq.models"]}
+            db_url=db_uri,
+            modules={"models": ["homeworq.models"]},
         )
         await Tortoise.generate_schemas()
 
@@ -576,7 +381,7 @@ class Homeworq(BaseModel):
         """
 
         async def _run_instance() -> None:
-            await cls.init_db()
+            await cls._init_db(db_uri=settings.db_uri)
             instance = cls(
                 settings=settings or Settings(),
                 defaults=defaults or [],

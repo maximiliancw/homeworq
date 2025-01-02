@@ -2,7 +2,7 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,8 +10,9 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .core import Homeworq
-from .schemas import Job, JobCreate, JobUpdate, Log, PaginatedResponse
+from . import models
+from .core import HQ
+from .schemas import Job, JobCreate, JobUpdate, Log, PaginatedResponse, Settings, Status
 from .tasks import Task, get_registered_task, get_registered_tasks
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ a RESTful interface for consuming/managing tasks, jobs, and logs.
 """
 
 
-async def create_api(hq: Homeworq) -> FastAPI:
+async def create_api(settings: Settings) -> FastAPI:
     app = FastAPI(
         title="homeworq",
         description=API_DESCRIPTION,
@@ -37,8 +38,6 @@ async def create_api(hq: Homeworq) -> FastAPI:
         redoc_url=None,
         openapi_url="/api/openapi.json",
     )
-
-    app.state.hq = hq
 
     app.add_middleware(
         CORSMiddleware,
@@ -98,16 +97,20 @@ async def create_api(hq: Homeworq) -> FastAPI:
     @app.get("/api/analytics/recent-activity", tags=["Analytics"])
     async def get_recent_activity():
         """Get recent job logs for the activity feed."""
-        results = await app.state.hq.list_logs(skip=0, limit=3)
-        return sorted(results, key=lambda x: x.started_at, reverse=True)
+        logs = (
+            await models.Log.all()
+            .prefetch_related("job")
+            .limit(3)
+            .order_by("-started_at")
+        )
+        return [await log.to_schema() for log in logs]
 
     @app.get("/api/analytics/upcoming-executions", tags=["Analytics"])
     async def get_upcoming_executions():
         """Get upcoming scheduled job executions."""
-        hq: Homeworq = app.state.hq
-        jobs = await hq.list_jobs(offset=0, limit=3)
         now = datetime.now(timezone.utc)
-        return [job for job in jobs if job.next_run and job.next_run > now]
+        jobs = await models.Job.filter(next_run__gt=now).limit(3).order_by("next_run")
+        return [await job.to_schema() for job in jobs]
 
     @app.get("/api/analytics/execution-history", tags=["Analytics"])
     async def get_execution_history():
@@ -115,18 +118,18 @@ async def create_api(hq: Homeworq) -> FastAPI:
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=30)
 
-        executions = await app.state.hq.list_logs(skip=0, limit=100)
-
-        filtered_executions = [
-            e
-            for e in executions
-            if start_date <= e.started_at.replace(tzinfo=timezone.utc) <= end_date
-        ]
+        logs = (
+            await models.Log.filter(
+                started_at__gte=start_date, started_at__lte=end_date
+            )
+            .limit(100)
+            .order_by("-started_at")
+        )
 
         history = defaultdict(lambda: defaultdict(int))
-        for exec in filtered_executions:
-            date = exec.started_at.date()
-            history[date][exec.status] += 1
+        for log in logs:
+            date = log.started_at.date()
+            history[date][log.status] += 1
 
         return [
             {
@@ -141,21 +144,31 @@ async def create_api(hq: Homeworq) -> FastAPI:
     @app.get("/api/analytics/task-distribution", tags=["Analytics"])
     async def get_task_distribution():
         """Get task execution distribution."""
-        executions = await app.state.hq.list_logs(skip=0, limit=1000)
+        logs = await models.Log.all().prefetch_related("job").limit(1000)
 
         distribution = defaultdict(lambda: {"total": 0, "completed": 0, "failed": 0})
 
-        for exec in executions:
-            task_name = exec.job.task.name
+        for log in logs:
+            task_name = log.job.task_name
             distribution[task_name]["total"] += 1
-            if exec.status == "COMPLETED":
+            if log.status == Status.COMPLETED:
                 distribution[task_name]["completed"] += 1
-            elif exec.status == "FAILED":
+            elif log.status == Status.FAILED:
                 distribution[task_name]["failed"] += 1
 
         return [
             {"task": task_name, **stats} for task_name, stats in distribution.items()
         ]
+
+    @app.get("/api/analytics/error-rate", tags=["Analytics"])
+    async def get_error_rate():
+        """Get the current error rate."""
+        total = await models.Log.all().count()
+        failed = await models.Log.filter(status=Status.FAILED).count()
+
+        if total == 0:
+            return {"error_rate": 0}
+        return {"error_rate": failed / total}
 
     @app.get("/api/tasks", response_model=List[Task], tags=["Tasks"])
     async def list_tasks():
@@ -172,101 +185,109 @@ async def create_api(hq: Homeworq) -> FastAPI:
         try:
             task = get_registered_task(task_name)
             result = await task.func(**params)
-            return {"status": "success", "result": result}
+            # Create a log entry for the manual run
+            log = await models.Log.create(
+                job=None,
+                status=Status.COMPLETED,
+                started_at=datetime.now(timezone.utc),
+                finished_at=datetime.now(timezone.utc),
+                result=result,
+            )
+            return {"status": "success", "result": result, "log_id": log.id}
         except Exception as e:
+            # Log the failure
+            await models.Log.create(
+                job=None,
+                status=Status.FAILED,
+                started_at=datetime.now(timezone.utc),
+                finished_at=datetime.now(timezone.utc),
+                error=str(e),
+            )
             raise HTTPException(400, str(e)) from e
 
-    @app.post("/api/jobs", response_model=Job, tags=["Jobs"])
-    async def create_job(job_create: JobCreate):
-        try:
-            return await app.state.hq.create_job(job_create)
-        except Exception as e:
-            raise HTTPException(400, str(e)) from e
-
-    @app.get("/api/jobs", response_model=PaginatedResponse[Job], tags=["Jobs"])
+    @app.get("/api/jobs", response_model=List[Job], tags=["Jobs"])
     async def list_jobs(
-        offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000)
+        limit: int = Query(100, ge=1, le=1000),
+        offset: int = Query(0, ge=0),
+        task: Optional[str] = None,
     ):
-        jobs = await app.state.hq.list_jobs(offset=offset, limit=limit)
-        total = len(jobs)  # TODO: Add count query
-        return PaginatedResponse(
-            items=jobs,
-            total=total,
-            offset=offset,
-            limit=limit,
-        )
+        """List jobs with pagination and optional task filter."""
+        query = models.Job.all()
+        if task:
+            query = query.filter(task_name=task)
+
+        jobs = await query.offset(offset).limit(limit)
+        return [await job.to_schema() for job in jobs]
 
     @app.get("/api/jobs/{job_id}", response_model=Job, tags=["Jobs"])
     async def get_job(job_id: int):
-        job = await app.state.hq.get_job(job_id)
+        """Get a specific job by ID."""
+        job = await models.Job.get_or_none(id=job_id)
         if not job:
             raise HTTPException(404, f"Job #{job_id} not found")
-        return job
+        return await job.to_schema()
+
+    @app.post("/api/jobs", response_model=Job, tags=["Jobs"])
+    async def create_job(job_create: JobCreate):
+        """Create a new job."""
+        try:
+            job = await models.Job.create(**job_create.dict())
+            return await job.to_schema()
+        except Exception as e:
+            raise HTTPException(400, str(e))
 
     @app.put("/api/jobs/{job_id}", response_model=Job, tags=["Jobs"])
     async def update_job(job_id: int, job_update: JobUpdate):
+        """Update an existing job."""
+        job = await models.Job.get_or_none(id=job_id)
+        if not job:
+            raise HTTPException(404, f"Job #{job_id} not found")
+
         try:
-            return await app.state.hq.update_job(job_id, job_update)
+            await models.Job.filter(id=job_id).update(
+                **job_update.dict(exclude_unset=True)
+            )
+            updated_job = await models.Job.get(id=job_id)
+            return await updated_job.to_schema()
         except Exception as e:
-            raise HTTPException(400, str(e)) from e
+            raise HTTPException(400, str(e))
 
     @app.delete("/api/jobs/{job_id}", tags=["Jobs"])
     async def delete_job(job_id: int):
-        await app.state.hq.delete_job(job_id)
+        """Delete a job and its related data."""
+        job = await models.Job.get_or_none(id=job_id)
+        if not job:
+            raise HTTPException(404, f"Job #{job_id} not found")
+
+        # Delete related logs and the job using model managers
+        await models.Log.filter(job_id=job_id).delete()
+        await models.Job.filter(id=job_id).delete()
         return {"status": "success"}
 
-    # Results endpoints
-    @app.get(
-        "/api/logs",
-        response_model=PaginatedResponse[Log],
-        tags=["Logs"],
-    )
+    @app.get("/api/logs", response_model=PaginatedResponse[Log], tags=["Logs"])
     async def list_logs(
-        offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000)
-    ):
-        """List all job execution logs with pagination."""
-        logs = await app.state.hq.list_logs(
-            skip=offset,
-            limit=limit,
-        )
-        total = len(logs)  # TODO: Add count query
-        return PaginatedResponse(
-            items=logs,
-            total=total,
-            offset=offset,
-            limit=limit,
-        )
-
-    @app.get(
-        "/api/logs/{job_id}",
-        response_model=PaginatedResponse[Log],
-        tags=["Logs"],
-    )
-    async def get_job_logs(
-        job_id: int,
         offset: int = Query(0, ge=0),
         limit: int = Query(100, ge=1, le=1000),
+        job_id: Optional[int] = None,
+        status: Optional[Status] = None,
     ):
-        """Get paginated execution logs for a specific job."""
-        logs = await app.state.hq.list_logs(
-            job_id,
-            skip=offset,
-            limit=limit,
-        )
-        total = len(logs)  # TODO: Add count query
+        """List execution logs with pagination and filtering."""
+        query = models.Log.all().prefetch_related("job")
+
+        if job_id:
+            query = query.filter(job_id=job_id)
+        if status:
+            query = query.filter(status=status)
+
+        total = await query.count()
+        logs = await query.offset(offset).limit(limit).order_by("-started_at")
+
         return PaginatedResponse(
-            items=logs,
+            items=[await log.to_schema() for log in logs],
             total=total,
             offset=offset,
             limit=limit,
         )
-
-    @app.get("/api/health", tags=["Miscellaneous"])
-    async def health_check():
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "healthy": app.state.hq.is_running,
-        }
 
     # Error handler
     @app.exception_handler(Exception)

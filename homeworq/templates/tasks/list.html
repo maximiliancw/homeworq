@@ -11,22 +11,25 @@ Tasks
     </template>
 
     <template x-for="task in filteredTasks" :key="task.name">
-        <section :id="'task-' + task.name" class="task-section" style="margin-top: 5rem;">
-            <header style="display: flex; justify-content: space-between; align-items: center;">
-                <hgroup>
-                    <h3 x-text="task.title || task.name" style="margin-bottom: 1rem"></h3>
-                    <code x-text="task.name"></code>
-                </hgroup>
-                <div style="display: flex; align-items: center;">
-                    <div role="group">
-                        <button class="secondary">Run</button>
-                        <button>Schedule</button>
-                    </div>
+        <section :id="'task-' + task.name" class="task-section">
+            <article>
+                <header style="display: flex; justify-content: space-between;">
+                    <hgroup>
+                        <h3 x-text="task.title || task.name" style="margin-bottom: 1rem"></h3>
+                        <code x-text="task.name"></code>
+                    </hgroup>
+                    <details class="dropdown">
+                        <summary role="button">Actions</summary>
+                        <ul dir="rtl">
+                            <li><a :href="'/tasks/' + task.name">Run Once ▶️</a></li>
+                            <li><a :href="'/jobs/add?task=' + task.name">Schedule 🗓️</a></li>
+                        </ul>
+                    </details>
+                </header>
+                <div style="margin-top: 1rem;">
+                    <pre x-text="task.description || 'No description available'"></pre>
                 </div>
-            </header>
-            <div style="margin-top: 1rem;">
-                <pre x-text="task.description || 'No description available'"></pre>
-            </div>
+            </article>
         </section>
     </template>
 </div>
@@ -34,6 +37,8 @@ Tasks
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/store.js">
+</script>
 <script>
     function taskList() {
         return {

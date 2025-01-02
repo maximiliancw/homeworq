@@ -115,7 +115,7 @@ class JobUpdate(JobBase):
 
 
 class Job(JobBase):
-    id: int
+    id: str
     name: str
     task: Task
     created_at: datetime
@@ -125,7 +125,7 @@ class Job(JobBase):
 
 
 class LogBase(BaseModel):
-    job_id: int
+    job_id: str
     status: Status
     started_at: datetime
     completed_at: Optional[datetime] = None

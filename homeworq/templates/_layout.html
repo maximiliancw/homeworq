@@ -131,31 +131,10 @@
     </dialog>
 
     <!-- Scripts -->
-    <script type="text/javascript" charset="utf8" src="static/scripts.js"></script>
-    <script type="text/javascript" charset="utf8" src="static/store.js"></script>
+    <script type="text/javascript" charset="utf8" src="static/js/scripts.js"></script>
     <script>
         // Start periodic updates
-        $(document).ready(() => {
-            const store = Alpine.store('data');
-            store.checkHealth();
 
-            var path = window.location.pathname;
-            // Add 'active' class to both desktop and mobile navigation links
-            if (path === "/") {
-                $("#nav-dashboard").addClass("active");
-                $(".nav-mobile-items a[href='/']").addClass("active");
-            } else if (path.startsWith("/tasks")) {
-                $("#nav-tasks").addClass("active");
-                $(".nav-mobile-items a[href='/tasks']").addClass("active");
-            } else if (path.startsWith("/jobs")) {
-                $("#nav-jobs").addClass("active");
-                $(".nav-mobile-items a[href='/jobs']").addClass("active");
-            } else if (path.startsWith("/logs")) {
-                $("#nav-logs").addClass("active");
-                $(".nav-mobile-items a[href='/logs']").addClass("active");
-            }
-
-        });
     </script>
     {% block scripts %}{% endblock %}
 </body>

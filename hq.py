@@ -3,7 +3,7 @@ import typing
 import urllib.request
 from typing import Any, Dict
 
-from homeworq import Homeworq, register_task, schemas
+from homeworq import HQ, register_task, schemas
 
 
 @register_task(title="Website Health Check")
@@ -89,4 +89,4 @@ if __name__ == "__main__":
     ]
 
     # Let's go! 🚀
-    Homeworq.run(settings=settings, defaults=default_jobs)
+    HQ.run(settings=settings, defaults=default_jobs)

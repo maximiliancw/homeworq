@@ -9,13 +9,12 @@
 {% endblock %}
 
 {% block content %}
-<div x-data="jobsTable()" x-init="init()" class="table-container">
+<div class="table-container">
     <table id="jobsTable" aria-label="Scheduled Jobs">
         <thead>
             <tr>
                 <th>Name</th>
                 <th>Params</th>
-                <th>Schedule</th>
                 <th>Last Run</th>
                 <th>Next Run</th>
                 <th>Actions</th>
@@ -27,61 +26,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-    function jobsTable() {
-        return {
-            table: null,
-            initialized: false,
-
-            async init() {
-                if (this.initialized) return;
-
-                this.table = $('#jobsTable').DataTable({
-                    ajax: {
-                        url: "/api/jobs",
-                        dataSrc: 'items'
-                    },
-                    columns: [
-                        { data: "name" },
-                        {
-                            data: "params",
-                            render: data => data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : 'N/A'
-                        },
-                        {
-                            data: "schedule",
-                            render: data => data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : 'N/A'
-                        },
-                        {
-                            data: "last_run",
-                            render: data => data ? new Date(data).toLocaleString() : 'Never'
-                        },
-                        {
-                            data: "next_run",
-                            render: data => data ? new Date(data).toLocaleString() : 'Not scheduled'
-                        },
-                        {
-                            data: "id",
-                            render: data => `
-                                <button onclick="showJobHistory('${data}')" class="secondary">History</button>
-                                <button onclick="deleteJob('${data}')" class="contrast">Delete</button>
-                            `
-                        }
-                    ],
-                    order: [[4, 'desc']]
-                });
-
-                this.initialized = true;
-
-                // Set up periodic updates without reinitializing
-                setInterval(() => {
-                    if (this.table) {
-                        Alpine.store('data').fetchJobs();
-                        this.table.ajax.reload(null, false);
-                    }
-                }, 30000);
-            }
-        };
-    }
-</script>
-
+<script type="text/javascript" src="/static/js/jobs.js"></script>
 {% endblock %}

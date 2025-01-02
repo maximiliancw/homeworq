@@ -19,6 +19,7 @@ class BaseModel(models.Model):
 
 
 class Job(BaseModel):
+    id: str = fields.CharField(pk=True, max_length=64)
     task_name = fields.CharField(max_length=255)
     params = fields.JSONField()
     schedule_interval = fields.IntField(null=True)
@@ -35,9 +36,38 @@ class Job(BaseModel):
     class Meta:
         table = "hq_jobs"
 
+    @staticmethod
+    def create_default_hash(schema: JobCreate) -> str:
+        """Create a unique hash for a default job configuration"""
+        import hashlib
+        import json
+
+        # Create a deterministic representation of the JobCreate object
+        # Only include fields that define the job's essential nature
+        hash_dict = {
+            "task": schema.task,
+            "params": schema.params,
+            "schedule": (
+                schema.schedule
+                if isinstance(schema.schedule, str)
+                else schema.schedule.model_dump()
+            ),
+            "options": schema.options.model_dump(),
+        }
+
+        # Create a deterministic JSON string
+        hash_input = json.dumps(hash_dict, sort_keys=True)
+
+        # Create SHA-256 hash
+        return hashlib.sha256(hash_input.encode()).hexdigest()
+
     @classmethod
-    async def from_schema(cls, schema: JobCreate) -> "Job":
-        """Create Job model from JobCreate schema"""
+    async def from_schema(
+        cls,
+        schema: JobCreate,
+        is_default: bool = False,
+    ) -> "Job":
+        """Create Job model from JobCreate schema with upsert support for default jobs"""
         schedule_dict = {}
         if isinstance(schema.schedule, str):
             schedule_dict["schedule_cron"] = schema.schedule
@@ -49,7 +79,26 @@ class Job(BaseModel):
                     "schedule_at": schema.schedule.at,
                 }
             )
+
+        if is_default:
+            default_hash = cls.create_default_hash(schema)
+            # Try to find existing job by default_hash
+            existing_job = await cls.get_or_none(id=default_hash)
+            if existing_job:
+                # Update existing job
+                existing_job.params = schema.params
+                existing_job.timeout = schema.options.timeout
+                existing_job.max_retries = schema.options.max_retries
+                existing_job.start_date = schema.options.start_date
+                existing_job.end_date = schema.options.end_date
+                for k, v in schedule_dict.items():
+                    setattr(existing_job, k, v)
+                await existing_job.save()
+                return existing_job
+
+        # Create new job
         job = await cls.create(
+            id=cls.create_default_hash(schema) if is_default else None,
             task_name=schema.task,
             params=schema.params,
             timeout=schema.options.timeout,

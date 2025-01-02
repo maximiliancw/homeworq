@@ -1,4 +1,4 @@
-results.db*
+*.db*
 
 # General
 .DS_Store

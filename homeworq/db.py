@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class Database:
     """Async database storage using TortoiseORM"""
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
+    def __init__(self, db_uri: str = "sqlite://homeworq.db"):
+        self.db_uri = db_uri
         self._connected = False
 
     async def connect(self):
@@ -25,7 +25,7 @@ class Database:
         try:
             # Initialize Tortoise ORM
             await Tortoise.init(
-                db_url=f"sqlite://{self.db_path}",
+                db_url=self.db_uri,
                 modules={"models": ["homeworq.models"]},
                 use_tz=True,
             )
@@ -34,7 +34,7 @@ class Database:
             await Tortoise.generate_schemas()
 
             self._connected = True
-            logger.info("Connected to database at %s", self.db_path)
+            logger.info("Connected to database at %s", self.db_uri)
 
         except Exception as e:
             logger.error("Failed to connect to database: %s", str(e))

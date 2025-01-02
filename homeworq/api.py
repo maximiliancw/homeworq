@@ -75,10 +75,10 @@ async def create_api(hq: Homeworq) -> FastAPI:
             {"request": request},
         )
 
-    @app.get("/results", include_in_schema=False)
-    async def view_results(request: Request):
+    @app.get("/logs", include_in_schema=False)
+    async def view_logs(request: Request):
         return templates.TemplateResponse(
-            "results/list.html",
+            "logs/list.html",
             {"request": request},
         )
 
@@ -87,13 +87,13 @@ async def create_api(hq: Homeworq) -> FastAPI:
     @app.get("/api/analytics/recent-activity", tags=["Analytics"])
     async def get_recent_activity():
         """Get recent job executions for the activity feed."""
-        results = await app.state.hq.get_job_executions(skip=0, limit=10)
+        results = await app.state.hq.get_job_executions(skip=0, limit=3)
         return sorted(results, key=lambda x: x.started_at, reverse=True)
 
     @app.get("/api/analytics/upcoming-executions", tags=["Analytics"])
     async def get_upcoming_executions():
         """Get upcoming scheduled job executions."""
-        jobs = await app.state.hq.list_jobs(offset=0, limit=100)
+        jobs = await app.state.hq.list_jobs(offset=0, limit=3)
         now = datetime.now(timezone.utc)
         return [job for job in jobs if job.next_run and job.next_run > now]
 
@@ -103,7 +103,7 @@ async def create_api(hq: Homeworq) -> FastAPI:
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=30)
 
-        executions = await app.state.hq.get_job_executions(skip=0, limit=1000)
+        executions = await app.state.hq.get_job_executions(skip=0, limit=100)
 
         filtered_executions = [
             e
@@ -205,45 +205,45 @@ async def create_api(hq: Homeworq) -> FastAPI:
 
     # Results endpoints
     @app.get(
-        "/api/results",
+        "/api/logs",
         response_model=PaginatedResponse[JobExecution],
         tags=["Results"],
     )
-    async def list_results(
+    async def list_logs(
         offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000)
     ):
-        """List all job execution results with pagination."""
-        results = await app.state.hq.get_job_executions(
+        """List all job execution logs with pagination."""
+        logs = await app.state.hq.get_job_executions(
             skip=offset,
             limit=limit,
         )
-        total = len(results)  # TODO: Add count query
+        total = len(logs)  # TODO: Add count query
         return PaginatedResponse(
-            items=results,
+            items=logs,
             total=total,
             offset=offset,
             limit=limit,
         )
 
     @app.get(
-        "/api/results/{job_id}",
+        "/api/logs/{job_id}",
         response_model=PaginatedResponse[JobExecution],
         tags=["Results"],
     )
-    async def get_job_results(
+    async def get_job_logs(
         job_id: int,
         offset: int = Query(0, ge=0),
         limit: int = Query(100, ge=1, le=1000),
     ):
-        """Get paginated execution results for a specific job."""
-        results = await app.state.hq.get_job_executions(
+        """Get paginated execution logs for a specific job."""
+        logs = await app.state.hq.get_job_executions(
             job_id,
             skip=offset,
             limit=limit,
         )
-        total = len(results)  # TODO: Add count query
+        total = len(logs)  # TODO: Add count query
         return PaginatedResponse(
-            items=results,
+            items=logs,
             total=total,
             offset=offset,
             limit=limit,

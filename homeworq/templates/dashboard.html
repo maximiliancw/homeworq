@@ -2,7 +2,7 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<section x-data="dashboard()" x-init="init()" class="container">
+<div x-data="dashboard()" x-init="init()" class="container">
     <!-- Summary Metrics -->
     <div class="grid">
         <article>
@@ -14,23 +14,56 @@
             <span x-text="$store.data.metrics.activeJobs || '-'"></span>
         </article>
         <article>
-            <h3>Results</h3>
+            <h3>Logs</h3>
             <span x-text="$store.data.metrics.totalExecutions || '-'"></span>
         </article>
         <article>
-            <h3>System</h3>
+            <h3>Health</h3>
             <kbd x-bind:class="$store.data.health.healthy ? 'pico-background-green-500' : 'pico-background-red-500'"
-                x-text="$store.data.health.healthy ? 'healthy' : 'unstable'">
+                x-text="$store.data.health.healthy ? '100%' : '75%'">
                 unknown
             </kbd>
         </article>
     </div>
 
-    <!-- Recent Activity & Next Executions -->
-    <div class="grid">
+    <section>
         <article>
             <header>
-                <h3>Recent Jobs</h3>
+                <h3>Upcoming Activity</h3>
+            </header>
+            <template x-if="$store.data.analytics.upcomingExecutions.length === 0">
+                <p class="text-muted">No upcoming executions</p>
+            </template>
+            <template x-if="$store.data.analytics.upcomingExecutions.length > 0">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Job</th>
+                            <th scope"col">Params</th>
+                            <th scope="col">Next Run</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="job in $store.data.analytics.upcomingExecutions" :key="job.id">
+                            <tr>
+                                <td><a x-bind:href="`/jobs/${job.id}`" x-text="job.name"></a></td>
+                                <td>
+                                    <pre x-text="JSON.stringify(job.params, null, 2)"></pre>
+                                </td>
+                                <td x-text="formatDate(job.next_run)"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </template>
+        </article>
+    </section>
+
+    <!-- Recent Activity & Next Executions -->
+    <section>
+        <article>
+            <header>
+                <h3>Recent Activity</h3>
             </header>
             <template x-if="$store.data.analytics.recentActivity.length === 0">
                 <p class="text-muted">No recent activity</p>
@@ -40,6 +73,7 @@
                     <thead>
                         <tr>
                             <th scope="col">Job</th>
+                            <th scope="col">Params</th>
                             <th scope="col">When</th>
                             <th scope="col">Duration</th>
                             <th scope="col">Status</th>
@@ -49,7 +83,11 @@
                         <template x-for="exec in $store.data.analytics.recentActivity" :key="exec.id">
                             <tr>
                                 <td>
-                                    <a x-bind:href="`/results/${exec.job.id}`" x-text="exec.job.name"></a>
+                                    <a x-bind:href="`/results/${exec.job.id}`" x-text="exec.job.name"
+                                        data-tooltip="Show log"></a>
+                                </td>
+                                <td>
+                                    <pre x-text="JSON.stringify(exec.job.params, null, 2)"></pre>
                                 </td>
                                 <td x-text="formatTimeAgo(exec.started_at)"></td>
                                 <td x-show="exec.duration !== null" x-text="formatDuration(exec.duration)"></td>
@@ -60,33 +98,8 @@
                 </table>
             </template>
         </article>
-        <article>
-            <header>
-                <h3>Upcoming Jobs</h3>
-            </header>
-            <template x-if="$store.data.analytics.upcomingExecutions.length === 0">
-                <p class="text-muted">No upcoming executions</p>
-            </template>
-            <template x-if="$store.data.analytics.upcomingExecutions.length > 0">
-                <table>
-                    <thead>
-                        <tr>
-                            <th scope="col">Job</th>
-                            <th scope="col">Next Run</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <template x-for="job in $store.data.analytics.upcomingExecutions" :key="job.id">
-                            <tr>
-                                <td><strong x-text="job.name"></strong></td>
-                                <td x-text="formatDate(job.next_run)"></td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </template>
-        </article>
-    </div>
+
+    </section>
 
     <!-- Charts -->
     <div class="grid">
@@ -113,7 +126,7 @@
             </div>
         </article>
     </div>
-</section>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -309,10 +322,10 @@
             // Rest of your utility functions remain the same
             getStatusEmoji(status) {
                 return {
-                    'COMPLETED': '✅',
-                    'FAILED': '❌',
-                    'RUNNING': '⏳',
-                    'PENDING': '⏰'
+                    'completed': '✅',
+                    'failed': '❌',
+                    'running': '⏳',
+                    'pending': '⏰'
                 }[status] || '❔';
             },
 

@@ -3,7 +3,7 @@ document.addEventListener("alpine:init", () => {
     search: "",
     tasks: [],
     jobs: { items: [] },
-    executions: { items: [] },
+    logs: { items: [] },
     analytics: {
       recentActivity: [],
       upcomingExecutions: [],
@@ -23,7 +23,7 @@ document.addEventListener("alpine:init", () => {
       await Promise.all([
         this.fetchTasks(),
         this.fetchJobs(),
-        this.fetchExecutions(),
+        this.fetchLogs(),
         this.fetchAnalytics(),
       ]);
     },
@@ -49,15 +49,15 @@ document.addEventListener("alpine:init", () => {
         console.error("Error fetching jobs:", error);
       }
     },
-    async fetchExecutions() {
+    async fetchLogs() {
       try {
-        const response = await fetch("/api/results");
+        const response = await fetch("/api/logs");
         if (response.ok) {
-          this.executions = await response.json();
-          this.metrics.totalExecutions = this.executions.items.length;
+          this.logs = await response.json();
+          this.metrics.totalExecutions = this.logs.items.length;
         }
       } catch (error) {
-        console.error("Error fetching executions:", error);
+        console.error("Error fetching logs:", error);
       }
     },
     async fetchAnalytics() {

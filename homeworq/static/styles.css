@@ -20,6 +20,8 @@ pre {
   border: 1px solid #ddd; /* Optional: to create a styled box */
   overflow: auto; /* Ensures content scrolls instead of breaking the layout */
   box-sizing: border-box; /* Ensures padding is included in the element’s width */
+  margin: 0;
+  white-space: pre-wrap;
 }
 
 tbody {

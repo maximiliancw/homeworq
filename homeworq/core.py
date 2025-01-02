@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from .db import Database
-from .models import Job, JobDependency, JobExecution
+from .models import Job, JobExecution
 from .schemas import Job as JobSchema
 from .schemas import JobCreate
 from .schemas import JobExecution as JobExecutionSchema
@@ -41,12 +41,12 @@ class Homeworq(BaseModel):
     _api_engine: Optional[asyncio.Task] = None
     _api: Optional[FastAPI] = None
     _job_locks: Dict[int, asyncio.Lock] = {}
-    _job_tasks: Dict[int, asyncio.Task] = {}
+    _job_runners: Dict[int, asyncio.Task] = {}
 
     def model_post_init(self, __context) -> None:
         """Initialize instance after Pydantic model creation."""
         super().model_post_init(__context)
-        self._job_tasks = {}
+        self._job_runners = {}
         self._job_locks = {}
         self._setup_logging()
         self._api = None
@@ -280,13 +280,16 @@ class Homeworq(BaseModel):
             try:
                 jobs = await Job.all()
                 for job in jobs:
-                    if job.id not in self._job_tasks or self._job_tasks[job.id].done():
-                        self._job_tasks[job.id] = asyncio.create_task(
+                    if (
+                        job.id not in self._job_runners
+                        or self._job_runners[job.id].done()
+                    ):
+                        self._job_runners[job.id] = asyncio.create_task(
                             self._run_job_scheduler(job)
                         )
 
                 # Clean up completed tasks
-                for job_id, task in list(self._job_tasks.items()):
+                for job_id, task in list(self._job_runners.items()):
                     if task.done():
                         try:
                             await task
@@ -298,7 +301,7 @@ class Homeworq(BaseModel):
                                 exc_info=True,
                             )
                         finally:
-                            del self._job_tasks[job_id]
+                            del self._job_runners[job_id]
 
                 await asyncio.sleep(1)
 
@@ -383,9 +386,11 @@ class Homeworq(BaseModel):
         job = await Job.get(id=job_id)
         await job.update_from_schema(job_update)
 
-        if job_id in self._job_tasks:
-            self._job_tasks[job_id].cancel()
-            self._job_tasks[job_id] = asyncio.create_task(self._run_job_scheduler(job))
+        if job_id in self._job_runners:
+            self._job_runners[job_id].cancel()
+            self._job_runners[job_id] = asyncio.create_task(
+                self._run_job_scheduler(job)
+            )
 
         return job.to_schema()
 
@@ -409,9 +414,9 @@ class Homeworq(BaseModel):
             await existing_job.save()
 
             # Restart the job scheduler if necessary
-            if existing_job.id in self._job_tasks:
-                self._job_tasks[existing_job.id].cancel()
-                self._job_tasks[existing_job.id] = asyncio.create_task(
+            if existing_job.id in self._job_runners:
+                self._job_runners[existing_job.id].cancel()
+                self._job_runners[existing_job.id] = asyncio.create_task(
                     self._run_job_scheduler(existing_job)
                 )
 
@@ -432,12 +437,11 @@ class Homeworq(BaseModel):
             job_id: ID of job to delete
         """
         await JobExecution.filter(job_id=job_id).delete()
-        await JobDependency.filter(job_id=job_id).delete()
         await Job.filter(id=job_id).delete()
 
-        if job_id in self._job_tasks:
-            self._job_tasks[job_id].cancel()
-            del self._job_tasks[job_id]
+        if job_id in self._job_runners:
+            self._job_runners[job_id].cancel()
+            del self._job_runners[job_id]
 
     async def get_job_executions(
         self, job_id: int = None, skip: int = 0, limit: int = 100
@@ -477,7 +481,7 @@ class Homeworq(BaseModel):
             return
 
         # Initialize database
-        self._db = Database(self.settings.db_path)
+        self._db = Database(self.settings.db_uri)
         await self._db.connect()
 
         # Initialize API server
@@ -507,15 +511,15 @@ class Homeworq(BaseModel):
         self._running = False
 
         # Cancel all job tasks
-        for task in self._job_tasks.values():
+        for task in self._job_runners.values():
             task.cancel()
 
-        if self._job_tasks:
+        if self._job_runners:
             await asyncio.gather(
-                *self._job_tasks.values(),
+                *self._job_runners.values(),
                 return_exceptions=True,
             )
-            self._job_tasks.clear()
+            self._job_runners.clear()
 
         # Cancel main scheduler
         if self._scheduler_engine:

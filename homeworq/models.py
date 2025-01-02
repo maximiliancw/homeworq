@@ -33,7 +33,7 @@ class Job(BaseModel):
     next_run = fields.DatetimeField(null=True)
 
     class Meta:
-        table = "jobs"
+        table = "hq_jobs"
 
     @classmethod
     async def from_schema(cls, schema: JobCreate) -> "Job":
@@ -147,25 +147,6 @@ class Job(BaseModel):
         return f"{base_name} {schedule_str}"
 
 
-class JobDependency(BaseModel):
-    job = fields.ForeignKeyField(
-        "models.Job",
-        related_name="dependent_jobs",
-    )
-    depends_on = fields.ForeignKeyField(
-        "models.Job",
-        related_name="dependency_of",
-    )
-    required_status = fields.CharEnumField(
-        Status,
-        default=Status.COMPLETED,
-    )
-    within_hours = fields.FloatField(null=True)
-
-    class Meta:
-        table = "job_dependencies"
-
-
 class JobExecution(BaseModel):
     job = fields.ForeignKeyField("models.Job", related_name="executions")
     status = fields.CharEnumField(Status)
@@ -177,7 +158,7 @@ class JobExecution(BaseModel):
     retries = fields.IntField(default=0)
 
     class Meta:
-        table = "job_executions"
+        table = "hq_logs"
 
     async def to_schema(self) -> JobExecutionSchema:
         """Convert DB model to Pydantic schema"""

@@ -2,14 +2,20 @@
 
 {% block title %}Jobs{% endblock %}
 
+{% block page_menu %}
+<div style="display: flex; justify-content: flex-end;">
+    <button onclick="showJobForm()">Add Job</button>
+</div>
+{% endblock %}
+
 {% block content %}
 <div x-data="jobsTable()" x-init="init()" class="table-container">
     <table id="jobsTable" aria-label="Scheduled Jobs">
         <thead>
             <tr>
                 <th>Name</th>
+                <th>Params</th>
                 <th>Schedule</th>
-                <th>Status</th>
                 <th>Last Run</th>
                 <th>Next Run</th>
                 <th>Actions</th>
@@ -38,14 +44,12 @@
                     columns: [
                         { data: "name" },
                         {
-                            data: "schedule",
-                            render: data => data ? `<code>${JSON.stringify(data)}</code>` : 'N/A'
+                            data: "params",
+                            render: data => data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : 'N/A'
                         },
                         {
-                            data: "enabled",
-                            render: data => data
-                                ? '<span class="badge success">Enabled</span>'
-                                : '<span class="badge error">Disabled</span>'
+                            data: "schedule",
+                            render: data => data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : 'N/A'
                         },
                         {
                             data: "last_run",

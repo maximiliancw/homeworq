@@ -38,7 +38,7 @@
                 <li><a id="nav-dashboard" href="/">Dashboard</a></li>
                 <li><a id="nav-tasks" href="/tasks">Tasks</a></li>
                 <li><a id="nav-jobs" href="/jobs">Jobs</a></li>
-                <li><a id="nav-results" href="/results">Results</a></li>
+                <li><a id="nav-logs" href="/logs">Logs</a></li>
             </ul>
             <ul>
                 <li>
@@ -128,9 +128,10 @@
                 $("#nav-tasks").addClass("active");
             } else if (path.startsWith("/jobs")) {
                 $("#nav-jobs").addClass("active");
-            } else if (path.startsWith("/results")) {
-                $("#nav-results").addClass("active");
+            } else if (path.startsWith("/logs")) {
+                $("#nav-logs").addClass("active");
             }
+
         });
     </script>
     {% block scripts %}{% endblock %}

@@ -50,21 +50,15 @@ class Settings(BaseModel):
         8000,
         description="Port for API server",
     )
-    debug: bool = False
+    debug: bool = Field(False, description="Enable debug mode")
     log_path: Optional[str] = Field(
         None,
-        description="Path to log file",
+        description="Path to log file (default: log to stdout)",
     )
-    db_path: str = Field(
-        "homeworq.db",
-        description="Path to SQLite database",
+    db_uri: str = Field(
+        "sqlite://homeworq.db",
+        description="URI for DB connection (may include auth credentials)",
     )
-
-
-class JobDependency(BaseModel):
-    job_id: int
-    required_status: Status = Status.COMPLETED
-    within_hours: Optional[float] = None
 
 
 class JobSchedule(BaseModel):
@@ -92,7 +86,6 @@ class JobOptions(BaseModel):
     max_retries: Optional[int] = Field(None, ge=0, le=10)
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
-    dependencies: List[JobDependency] = Field(default_factory=list)
 
 
 class JobBase(BaseModel):

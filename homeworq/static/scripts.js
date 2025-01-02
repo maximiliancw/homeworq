@@ -1,4 +1,5 @@
 // Utility functions
+
 const showLoader = () =>
   (document.getElementById("loader").style.display = "block");
 const hideLoader = () =>

@@ -1,9 +1,9 @@
 {% extends "_layout.html" %}
-{% block title %}Results{% endblock %}
+{% block title %}Logs{% endblock %}
 
 {% block content %}
-<div x-data="resultsTable()" x-init="init()" class="table-container">
-    <table id="resultsTable" aria-label="Job Execution Results">
+<div x-data="logsTable()" x-init="init()" class="table-container">
+    <table id="logsTable" aria-label="Job Execution Results">
         <thead>
             <tr>
                 <th>Job</th>
@@ -18,7 +18,7 @@
 </div>
 
 <script>
-    function resultsTable() {
+    function logsTable() {
         return {
             table: null,
             initialized: false,
@@ -26,9 +26,9 @@
             async init() {
                 if (this.initialized) return;
 
-                this.table = $('#resultsTable').DataTable({
+                this.table = $('#logsTable').DataTable({
                     ajax: {
-                        url: "/api/results",
+                        url: "/api/logs",
                         dataSrc: 'items'
                     },
                     columns: [
@@ -43,12 +43,12 @@
                         },
                         {
                             data: "status",
-                            render: data => `${this.getStatusEmoji(data)} ${data}`
+                            render: data => `${this.getStatusEmoji(data)}`
                         },
                         {
                             data: null,
                             render: (data, type, row) => {
-                                const details = row.error || JSON.stringify(row.result, null, 2) || '-';
+                                const details = row.error || JSON.stringify(row.log, null, 2) || '-';
                                 return `<button class="button button-small" onclick="showDetails('${row.job.id}', '${details.replace(/'/g, "\\'")}')">Details</button>`;
                             }
                         }
@@ -61,18 +61,19 @@
                 // Set up periodic updates without reinitializing
                 setInterval(() => {
                     if (this.table) {
-                        Alpine.store('data').fetchExecutions();
+                        Alpine.store('data').fetchLogs();
                         this.table.ajax.reload(null, false);
                     }
                 }, 30000);
-            },
 
+
+            },
             getStatusEmoji(status) {
                 return {
-                    'COMPLETED': '✅',
-                    'FAILED': '❌',
-                    'RUNNING': '⏳',
-                    'PENDING': '⏰'
+                    'completed': '✅',
+                    'failed': '❌',
+                    'running': '⏳',
+                    'pending': '⏰'
                 }[status] || '❔';
             }
         }

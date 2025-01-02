@@ -315,10 +315,6 @@ class HQ(BaseModel):
         if not self._running:
             return
 
-        # Disconnect database
-        if self._db:
-            await self._db.disconnect()
-
         self._running = False
 
         # Cancel all job tasks
@@ -363,6 +359,7 @@ class HQ(BaseModel):
         await Tortoise.init(
             db_url=db_uri,
             modules={"models": ["homeworq.models"]},
+            table_name_generator=lambda cls: f"hq_{cls.__name__.lower()}s",
         )
         await Tortoise.generate_schemas()
 

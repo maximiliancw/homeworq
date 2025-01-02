@@ -33,9 +33,6 @@ class Job(BaseModel):
     last_run = fields.DatetimeField(null=True)
     next_run = fields.DatetimeField(null=True)
 
-    class Meta:
-        table = "hq_jobs"
-
     @staticmethod
     def create_default_hash(schema: JobCreate) -> str:
         """Create a unique hash for a default job configuration"""
@@ -205,9 +202,6 @@ class Log(BaseModel):
     result = fields.JSONField(null=True)
     error = fields.TextField(null=True)
     retries = fields.IntField(default=0)
-
-    class Meta:
-        table = "hq_logs"
 
     async def to_schema(self) -> LogSchema:
         """Convert DB model to Pydantic schema"""

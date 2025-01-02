@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -37,8 +37,8 @@ class Homeworq(BaseModel):
     defaults: List[JobCreate] = []
     _running: bool = False
     _db: Optional["Database"] = None
-    _scheduler_engine: Optional[asyncio.Task] = None
-    _api_engine: Optional[asyncio.Task] = None
+    _beat: Optional[asyncio.Task] = None
+    _api_runner: Optional[asyncio.Task] = None
     _api: Optional[FastAPI] = None
     _job_locks: Dict[int, asyncio.Lock] = {}
     _job_runners: Dict[int, asyncio.Task] = {}
@@ -90,7 +90,7 @@ class Homeworq(BaseModel):
         )
 
         server = uvicorn.Server(config)
-        self._api_engine = asyncio.create_task(server.serve())
+        self._api_runner = asyncio.create_task(server.serve())
 
         logger.info(
             "API server started at http://%s:%d",
@@ -264,7 +264,8 @@ class Homeworq(BaseModel):
                         job.next_run = await self._calculate_next_run(job)
                         await job.save()
 
-                        sleep_time = (job.next_run - datetime.now()).total_seconds()
+                        delta = job.next_run - datetime.now()
+                        sleep_time = (delta).total_seconds()
                         if sleep_time > 0:
                             await asyncio.sleep(sleep_time)
 
@@ -491,7 +492,7 @@ class Homeworq(BaseModel):
 
         # Start scheduler
         self._running = True
-        self._scheduler_engine = asyncio.create_task(self._scheduler_loop())
+        self._beat = asyncio.create_task(self._scheduler_loop())
         logger.info("Task scheduler started")
 
         # Create default jobs if any
@@ -522,18 +523,18 @@ class Homeworq(BaseModel):
             self._job_runners.clear()
 
         # Cancel main scheduler
-        if self._scheduler_engine:
-            self._scheduler_engine.cancel()
+        if self._beat:
+            self._beat.cancel()
             try:
-                await self._scheduler_engine
+                await self._beat
             except asyncio.CancelledError:
                 pass
 
         # Stop API server
-        if self._api_engine:
-            self._api_engine.cancel()
+        if self._api_runner:
+            self._api_runner.cancel()
             try:
-                await self._api_engine
+                await self._api_runner
             except asyncio.CancelledError:
                 pass
 
@@ -583,7 +584,11 @@ class Homeworq(BaseModel):
                 logger.info("Shutdown initiated...")
                 await instance.stop()
             except Exception as e:
-                logger.error("Error during execution: %s", str(e), exc_info=True)
+                logger.error(
+                    "Error during execution: %s",
+                    str(e),
+                    exc_info=True,
+                )
                 await instance.stop()
                 raise
 

@@ -3,14 +3,6 @@ const showLoader = () =>
 const hideLoader = () =>
   (document.getElementById("loader").style.display = "none");
 
-function showToast(message, type = "info") {
-  const toast = document.createElement("div");
-  toast.className = `toast toast-${type}`;
-  toast.textContent = message;
-  document.getElementById("toastContainer").appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
-}
-
 function formatResult(result) {
   if (typeof result === "object" && result !== null) {
     return JSON.stringify(result, null, 2);
@@ -78,7 +70,10 @@ function formatTimeAgo(date) {
 }
 
 function formatDuration(seconds) {
-  return `${seconds.toFixed(1)}s`;
+  if (typeof seconds == "number") {
+    return `${seconds.toFixed(1)}s`;
+  }
+  return seconds;
 }
 
 function formatDate(date) {

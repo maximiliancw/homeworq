@@ -23,14 +23,20 @@ function initJobsTable() {
       },
       {
         data: "id",
+        orderable: false,
+        searchable: false,
         render: (data) => `
-                      <button onclick="showJobHistory('${data}')">Details</button>
+                      <button onclick="showJobDetails('${data}')">Details</button>
                 `,
       },
     ],
     pageLength: 25,
     order: [[4, "desc"]], // Sort by next_run by default
   });
+}
+
+function showJobDetails(id) {
+  window.location.href = `/jobs/${id}`;
 }
 
 $(document).ready(function () {

@@ -1,7 +1,5 @@
 from typing import List, Optional, Union
 
-from .schemas import JobSchedule, TimeUnit
-
 
 def _parse_cron_field(
     field: str, options: List[str], allow_any: bool = True
@@ -47,7 +45,7 @@ def _format_time_list(
     return f"{', '.join(map(str, values[:-1]))}, and {values[-1]}"
 
 
-def format_schedule(schedule: Union[JobSchedule, str]) -> str:
+def format_schedule(schedule: Union["JobSchedule", str]) -> str:
     """
     Convert a schedule into a human-readable format.
 
@@ -143,20 +141,20 @@ def format_schedule(schedule: Union[JobSchedule, str]) -> str:
     # Handle singular/plural units
     unit_str = unit.value
     if interval == 1:
-        if unit == TimeUnit.HOURS:
+        if unit.value == "hours":
             unit_str = "hour"
-        elif unit == TimeUnit.DAYS:
-            return f"Every day{f' at {at_time}' if at_time else ''}"
-        elif unit == TimeUnit.WEEKS:
+        elif unit.value == "days":
+            return f"every day{f' at {at_time}' if at_time else ''}"
+        elif unit.value == "weeks":
             unit_str = "week"
-        elif unit == TimeUnit.MONTHS:
+        elif unit.value == "months":
             unit_str = "month"
-        elif unit == TimeUnit.YEARS:
+        elif unit.value == "years":
             unit_str = "year"
         else:
             unit_str = unit_str[:-1]  # Remove 's' for other units
 
-    base = f"Every {interval} {unit_str}"
+    base = f"every {interval} {unit_str}"
 
     if at_time:
         return f"{base} at {at_time}"

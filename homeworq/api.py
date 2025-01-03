@@ -1,12 +1,11 @@
 import base64
 import logging
 import os
-import secrets
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import HTTPBasicCredentials
@@ -150,6 +149,21 @@ async def create_api(hq: HQ) -> FastAPI:
             {"request": request},
         )
 
+    @app.get("/jobs/{job_id}", include_in_schema=False)
+    async def view_job_detail(
+        request: Request,
+        job_id: str,
+        auth: bool = Depends(is_authenticated),
+    ):
+        """UI route for job details page"""
+        job = await models.Job.get_or_none(id=job_id)
+        if not job:
+            raise HTTPException(404, f"Job #{job_id} not found")
+        return templates.TemplateResponse(
+            "jobs/detail.html",
+            {"request": request, "job": await job.to_schema()},
+        )
+
     @app.get("/logs", include_in_schema=False)
     async def view_logs(
         request: Request,
@@ -158,6 +172,21 @@ async def create_api(hq: HQ) -> FastAPI:
         return templates.TemplateResponse(
             "logs/list.html",
             {"request": request},
+        )
+
+    @app.get("/logs/{log_id}", include_in_schema=False)
+    async def view_log_detail(
+        request: Request,
+        log_id: int,
+        auth: bool = Depends(is_authenticated),
+    ):
+        """UI route for log details page"""
+        log = await models.Log.get_or_none(id=log_id)
+        if not log:
+            raise HTTPException(404, f"Log #{log_id} not found")
+        return templates.TemplateResponse(
+            "logs/detail.html",
+            {"request": request, "log": log},
         )
 
     # API Routes
@@ -288,7 +317,7 @@ async def create_api(hq: HQ) -> FastAPI:
         return [await job.to_schema() for job in jobs]
 
     @app.get("/api/jobs/{job_id}", response_model=Job, tags=["Jobs"])
-    async def get_job(job_id: int):
+    async def get_job(job_id: str):
         """Get a specific job by ID."""
         job = await models.Job.get_or_none(id=job_id)
         if not job:
@@ -305,7 +334,7 @@ async def create_api(hq: HQ) -> FastAPI:
             raise HTTPException(400, str(e))
 
     @app.put("/api/jobs/{job_id}", response_model=Job, tags=["Jobs"])
-    async def update_job(job_id: int, job_update: JobUpdate):
+    async def update_job(job_id: str, job_update: JobUpdate):
         """Update an existing job."""
         job = await models.Job.get_or_none(id=job_id)
         if not job:
@@ -321,7 +350,7 @@ async def create_api(hq: HQ) -> FastAPI:
             raise HTTPException(400, str(e))
 
     @app.delete("/api/jobs/{job_id}", tags=["Jobs"])
-    async def delete_job(job_id: int):
+    async def delete_job(job_id: str):
         """Delete a job and its related data."""
         job = await models.Job.get_or_none(id=job_id)
         if not job:

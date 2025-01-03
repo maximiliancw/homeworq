@@ -12,7 +12,8 @@ nav,
 th,
 button,
 [role="button"],
-ul[dir="rtl"] > li > a {
+ul[dir="rtl"] > li > a,
+.notification {
   font-family: "Comfortaa" !important;
 }
 
@@ -31,30 +32,177 @@ td > button {
   font-size: 0.75rem !important;
 }
 
-td > pre {
+td > pre,
+td > details {
   margin-top: 20px;
 }
 
-/* Toast styles */
-.toast-container {
+/* Notification styles */
+.notification-container {
   position: fixed;
-  top: var(--spacing-md);
-  right: var(--spacing-md);
+  top: 1rem;
+  right: 1rem;
   z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none; /* Allow clicking through container */
 }
 
-.toast {
-  background-color: var(--secondary-color);
-  color: var(--text-color-light);
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--border-radius-sm);
-  box-shadow: var(--shadow-subtle);
-  margin-bottom: var(--spacing-sm);
-  transition: opacity var(--transition-fast);
+.notification {
+  background-color: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+  padding: 0.75rem 1rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  margin-bottom: 0.5rem;
+  min-width: 250px;
+  max-width: 400px;
+  animation: slideIn 0.3s ease-out forwards;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: auto; /* Re-enable pointer events for notification */
+  font-size: 0.75rem;
+  border: 1px solid var(--pico-primary-inverse);
+  border-left: 0.5em solid white;
+  border-radius: 1em !important;
+  cursor: pointer;
+  position: relative;
 }
 
-.toast-exit {
-  opacity: 0;
+.notification-message {
+  margin-right: 0.5rem;
+  flex-grow: 1;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -8px;
+  padding: 1em;
+  right: -8px;
+  background: inherit;
+  color: inherit;
+  border: 1px solid white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.25rem;
+  padding: 24px;
+  margin: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.notification-close:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.notification-info {
+  background-color: var(--pico-color-blue-500);
+}
+
+.notification-success {
+  background-color: var(--pico-color-green-500);
+}
+
+.notification-error {
+  background-color: var(--pico-color-red-500);
+}
+
+.notification-warning {
+  background-color: var(--pico-color-orange-500);
+}
+
+.notification-exit {
+  animation: slideOut 0.3s ease-in forwards;
+}
+
+/* Add visual grouping for expanded notifications */
+.notification[data-group] {
+  margin-bottom: 2px; /* Tighter spacing within groups */
+}
+
+.notification[data-group]:not(.notification-group-last) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.notification[data-group]:not(.notification-group-first) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* Add subtle connected appearance */
+.notification[data-group]:not(.notification-group-last)::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
 }
 
 /* Modal styles */

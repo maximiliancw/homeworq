@@ -1,0 +1,179 @@
+{% extends "_layout.html" %}
+
+{% block title %}Job Details<br />
+<span style="font-size: 0.5em">
+    Run
+    <code style="font-size: 0.75em">
+        {{ job.task.name }}
+    </code>
+    {{ job.schedule }}
+</span>
+{%endblock %}
+
+{% block page_menu %}
+<div style="display: flex; justify-content: flex-end; gap: 5px">
+    <details class="dropdown">
+        <summary role="button">Actions</summary>
+        <ul dir="rtl">
+            <li><button class="pico-background-green-500" style="border: none; width: 100%"
+                    onclick="runJob()">Run</button></li>
+            <li><button class="secondary" style="border: none; width: 100%">Edit</button></li>
+            <li><button class="pico-background-red-500" style="border: none; width: 100%"
+                    onclick="deleteJob()">Delete</button></li>
+        </ul>
+    </details>
+</div>
+{% endblock %}
+
+{% block content %}
+<div>
+
+    <!-- Basic Info -->
+    <section>
+        <article>
+            <h3 class="text-lg font-semibold mb-2">Basic Information</h3>
+            <table>
+                <tbody>
+                    <tr>
+                        <td>ID</td>
+                        <td style="font-family: monospace">
+                            {{ job.id[:4] }}...{{ job.id[-4:] }}
+                            <span data-tooltip="Copy to clipboard" onclick="alert('{{ job.id }}')"
+                                style="border:none; cursor:pointer">📋</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Task</td>
+                        <td>
+                            <details>
+                                <summary>
+                                    <b>{{ job.task.title }}</b>
+                                    <code>{{ job.task.name }}</code>
+                                </summary>
+                                <small><b>Parameters</b></small>
+                                <pre>{{ job.params }}</pre>
+                            </details>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Created</td>
+                        <td id="jobCreated">{{ job.created_at.isoformat() }}</td>
+                    </tr>
+                    <tr>
+                        <td>Last Updated</td>
+                        <td id="jobUpdated">{{ job.updated_at.isoformat() }}</td>
+                    </tr>
+                    <tr>
+                        <td>Options</td>
+                        <td>
+                            <ul>
+                                {% for key, value in job.options.model_dump().items() %}
+                                <li><code>{{ key }} = {{ value }}</code></li>
+                                {% endfor %}
+                            </ul>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </article>
+    </section>
+    <!-- Schedule Info -->
+    <section>
+        <article>
+            <h3 class="text-lg font-semibold mb-2">Schedule</h3>
+            <table class="table w-full">
+                <tbody>
+                    <tr>
+                        <td class="font-medium">Schedule Type</td>
+                        <td id="scheduleType">
+                            <kbd>{{ "interval" if job.schedule.interval else "cron" }}</kbd>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="font-medium">Current Schedule</td>
+                        <td id="scheduleType">{{ job.schedule }}</td>
+                    </tr>
+                    <tr>
+                        <td class="font-medium">Next Run</td>
+                        <td id="nextRun">{{ job.next_run }}</td>
+                    </tr>
+                    <tr>
+                        <td class="font-medium">Last Run</td>
+                        <td id="lastRun">{{ job.last_run }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </article>
+    </section>
+    <section>
+        <!-- Options -->
+        <article>
+            <h3 class="text-lg font-semibold mb-2">Options</h3>
+            <pre class="bg-gray-100 p-4 rounded" id="jobOptions">{{ job.options }}</pre>
+        </article>
+    </section>
+    <section>
+        <!-- Execution History -->
+        <article>
+            <h3 class="text-lg font-semibold mb-2">Execution History</h3>
+            <div class="overflow-x-auto">
+                <table class="table w-full">
+                    <thead>
+                        <tr>
+                            <th>Started</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="executionHistory"></tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function deleteJob() {
+        if (confirm("Are you sure you want to delete this job?")) {
+            fetch("/api/jobs/{{ job.id }}", {
+                method: "DELETE",
+            })
+                .then((response) => {
+                    if (response.ok) {
+                        window.location.href = "/jobs";
+                    } else {
+                        alert("Failed to delete job");
+                    }
+                })
+                .catch((error) => {
+                    console.error(error);
+                    alert("Failed to delete job");
+                });
+        }
+    }
+
+    function runJob() {
+        fetch(`/api/jobs/${job.id}/run`, {
+            method: "POST",
+        })
+            .then((response) => {
+                if (response.ok) {
+                    alert("Job started successfully");
+                } else {
+                    alert("Failed to start job");
+                }
+            })
+            .catch((error) => {
+                console.error(error);
+                alert("Failed to start job");
+            });
+    }
+
+    function showJobForm() {
+        // TODO: Use showModal to show the job form
+    }
+</script>
+{% endblock %}

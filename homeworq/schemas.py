@@ -5,6 +5,7 @@ from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 from pydantic import BaseModel, Field, field_validator
 
 from .tasks import Task, get_registered_tasks
+from .utils import format_schedule
 
 T = TypeVar("T")
 
@@ -84,12 +85,24 @@ class JobSchedule(BaseModel):
                 raise ValueError(s) from e
         return v
 
+    def __str__(self):
+        unit = self.unit.value[:-1] if self.interval == 1 else self.unit.value
+        return f"every {self.interval if self.interval != 1 else ''} {unit}{' at ' + self.at if self.at else ''}"
+
 
 class JobOptions(BaseModel):
     timeout: Optional[int] = Field(None, ge=1)
     max_retries: Optional[int] = Field(None, ge=0, le=10)
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
+
+    def __str__(self):
+        d = self.model_dump()
+        return "\n".join(
+            f"{' '.join([s.title() for s in k.split('_')])}={v}"
+            for k, v in d.items()
+            if v is not None
+        )
 
 
 class JobBase(BaseModel):
@@ -126,6 +139,12 @@ class Job(JobBase):
     updated_at: datetime
     last_run: Optional[datetime] = None
     next_run: Optional[datetime] = None
+
+    def __str__(self):
+        return f"Run {self.task.name}({self.params}) every {self.schedule}"
+
+    def display_schedule(self) -> str:
+        return format_schedule(self.schedule)
 
 
 class LogBase(BaseModel):

@@ -50,6 +50,7 @@ if __name__ == "__main__":
     # Define settings
     settings = schemas.Settings(
         api_on=True,  # Enable the web interface
+        api_auth=True,  # Enable authentication for the web interface
         api_host="localhost",  # Host for the web interface
         api_port=8000,  # Port for the web interface
         debug=True,  # Enable debug logging

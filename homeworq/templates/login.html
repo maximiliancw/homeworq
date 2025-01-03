@@ -1,0 +1,22 @@
+{% extends "_layout.html" %}
+
+{% block content %}
+<section>
+    <article style="text-align: center; padding: 2em; margin: 0 auto; max-width: 20em;">
+        <h1>Login</h1>
+        {% if error %}
+        <div role="alert" style="color: var(--pico-del-color)">
+            {{ error }}
+        </div>
+        {% endif %}
+        <form method="post">
+            <fieldset>
+                <input name="username" placeholder="Username" aria-label="Username" autocomplete="username" />
+                <input type="password" name="password" placeholder="Password" aria-label="Password"
+                    autocomplete="current-password" />
+                <input type="submit" value="Submit" />
+            </fieldset>
+        </form>
+    </article>
+</section>
+{% endblock %}

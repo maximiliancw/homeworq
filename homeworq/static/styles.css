@@ -26,8 +26,13 @@ pre {
   white-space: pre-wrap;
 }
 
-tbody {
+tbody,
+td > button {
   font-size: 0.75rem !important;
+}
+
+td > pre {
+  margin-top: 20px;
 }
 
 /* Toast styles */

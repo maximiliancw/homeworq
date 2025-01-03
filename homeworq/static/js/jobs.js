@@ -24,8 +24,7 @@ function initJobsTable() {
       {
         data: "id",
         render: (data) => `
-                    <button onclick="showJobHistory('${data}')" class="secondary">History</button>
-                    <button onclick="deleteJob('${data}')" class="contrast">Delete</button>
+                      <button onclick="showJobHistory('${data}')">Details</button>
                 `,
       },
     ],

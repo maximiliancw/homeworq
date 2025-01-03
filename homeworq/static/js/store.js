@@ -13,7 +13,7 @@ document.addEventListener("alpine:init", () => {
 
     // Computed metrics now only depend on analytics data
     metrics() {
-      const totalLogs = this.logs.items.length;
+      const totalLogs = this.logs.total;
       const errors = this.analytics.recentActivity.filter(
         (log) => log.status === "failed"
       );

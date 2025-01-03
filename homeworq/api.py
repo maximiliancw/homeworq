@@ -1,18 +1,21 @@
+import base64
 import logging
 import os
+import secrets
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.security import HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import models
 from .core import HQ
-from .schemas import Job, JobCreate, JobUpdate, Log, PaginatedResponse, Settings, Status
+from .schemas import Job, JobCreate, JobUpdate, Log, PaginatedResponse, Status
 from .tasks import Task, get_registered_task, get_registered_tasks
 
 logger = logging.getLogger(__name__)
@@ -28,7 +31,7 @@ a RESTful interface for consuming/managing tasks, jobs, and logs.
 """
 
 
-async def create_api(settings: Settings) -> FastAPI:
+async def create_api(hq: HQ) -> FastAPI:
     app = FastAPI(
         title="homeworq",
         description=API_DESCRIPTION,
@@ -63,30 +66,95 @@ async def create_api(settings: Settings) -> FastAPI:
         directory=os.path.join(os.path.dirname(__file__), "templates")
     )
 
+    # Create dependency for protected routes
+    if hq.settings.api_auth:
+        from .auth import authenticate
+
+        async def is_authenticated(
+            valid: Annotated[bool, Depends(authenticate)]
+        ) -> bool:
+            return valid
+
+    else:
+        # No-op dependency when auth is disabled
+        async def is_authenticated() -> bool:
+            return True
+
+    # Login routes
+    @app.get("/login", include_in_schema=False)
+    async def login_page(request: Request):
+        if not hq.settings.api_auth:
+            return RedirectResponse(url="/", status_code=302)
+        return templates.TemplateResponse("login.html", {"request": request})
+
+    @app.post("/login", include_in_schema=False)
+    async def login(
+        request: Request, username: str = Form(...), password: str = Form(...)
+    ):
+        if not hq.settings.api_auth:
+            return RedirectResponse(url="/", status_code=302)
+
+        try:
+            # Create dummy credentials to use with get_current_username
+            credentials = HTTPBasicCredentials(
+                username=username,
+                password=password,
+            )
+            authenticate(credentials)  # Will raise HTTPException if invalid
+
+            # If we get here, credentials are valid
+            response = RedirectResponse(url="/", status_code=302)
+
+            # Set Basic auth header
+            auth_str = f"{username}:{password}"
+            auth_bytes = base64.b64encode(auth_str.encode()).decode()
+            response.headers["Authorization"] = f"Basic {auth_bytes}"
+
+            return response
+
+        except HTTPException:
+            return templates.TemplateResponse(
+                "login.html",
+                {"request": request, "error": "Invalid username or password"},
+                status_code=401,
+            )
+
     # UI Routes
     @app.get("/", include_in_schema=False)
-    async def view_dashboard(request: Request):
+    async def view_dashboard(
+        request: Request,
+        auth: bool = Depends(is_authenticated),
+    ):
         return templates.TemplateResponse(
             "dashboard.html",
             {"request": request},
         )
 
     @app.get("/tasks", include_in_schema=False)
-    async def view_tasks(request: Request):
+    async def view_tasks(
+        request: Request,
+        auth: bool = Depends(is_authenticated),
+    ):
         return templates.TemplateResponse(
             "tasks/list.html",
             {"request": request},
         )
 
     @app.get("/jobs", include_in_schema=False)
-    async def view_jobs(request: Request):
+    async def view_jobs(
+        request: Request,
+        auth: bool = Depends(is_authenticated),
+    ):
         return templates.TemplateResponse(
             "jobs/list.html",
             {"request": request},
         )
 
     @app.get("/logs", include_in_schema=False)
-    async def view_logs(request: Request):
+    async def view_logs(
+        request: Request,
+        auth: bool = Depends(is_authenticated),
+    ):
         return templates.TemplateResponse(
             "logs/list.html",
             {"request": request},

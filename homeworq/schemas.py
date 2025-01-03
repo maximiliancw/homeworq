@@ -42,6 +42,10 @@ class Settings(BaseModel):
         False,
         description="Enable/disable web service",
     )
+    api_auth: bool = Field(
+        False,
+        description="Enable/disable authentication",
+    )
     api_host: str = Field(
         "localhost",
         description="Host address for API server",

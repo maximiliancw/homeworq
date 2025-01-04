@@ -1,4 +1,5 @@
-# homeworq 🏠
+# ![homeworq logo](https://raw.githubusercontent.com/maximiliancw/homeworq/refs/heads/main/homeworq/static/favicon.ico) homeworq
+
 
 A powerful, async-first task scheduling system with an integrated JSON API and web interface. Built with Python 3.13+.
 

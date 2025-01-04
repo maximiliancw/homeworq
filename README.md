@@ -6,6 +6,10 @@ A powerful, async-first task scheduling system with an integrated JSON API and w
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
+## Screenshots
+
+![Screenshot of homeworq's dashboard view](screenshot.png)
+
 ## Features ✨
 
 - **Task Scheduling**

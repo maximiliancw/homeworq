@@ -131,19 +131,38 @@
 <script>
     function deleteJob() {
         if (confirm("Are you sure you want to delete this job?")) {
+            const store = Alpine.store("data")
+            store.notifier.addNotification({
+                message: "Deleting job...",
+                type: "info",
+                group: "ajax"
+            });
             fetch("/api/jobs/{{ job.id }}", {
                 method: "DELETE",
             })
                 .then((response) => {
                     if (response.ok) {
                         window.location.href = "/jobs";
+                        store.notifier.addNotification({
+                            message: "Job deleted",
+                            type: "success",
+                            group: "ajax"
+                        });
                     } else {
-                        alert("Failed to delete job");
+                        store.notifier.addNotification({
+                            message: "Failed to delete job",
+                            type: "error",
+                            group: "ajax"
+                        });
                     }
                 })
                 .catch((error) => {
                     console.error(error);
-                    alert("Failed to delete job");
+                    store.notifier.addNotification({
+                        message: "Failed to delete job",
+                        type: "error",
+                        group: "ajax"
+                    });
                 });
         }
     }
@@ -154,14 +173,26 @@
         })
             .then((response) => {
                 if (response.ok) {
-                    alert("Job started successfully");
+                    store.notifier.addNotification({
+                        message: "Job started",
+                        type: "success",
+                        group: "ajax"
+                    });
                 } else {
-                    alert("Failed to start job");
+                    store.notifier.addNotification({
+                        message: "Failed to start job",
+                        type: "error",
+                        group: "ajax"
+                    });
                 }
             })
             .catch((error) => {
                 console.error(error);
-                alert("Failed to start job");
+                store.notifier.addNotification({
+                    message: "Failed to start job",
+                    type: "error",
+                    group: "ajax"
+                });
             });
     }
 

@@ -118,7 +118,12 @@ class HQ(BaseModel):
         if job.schedule_at:
             # Parse time in UTC
             hour, minute = map(int, job.schedule_at.split(":"))
-            next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            next_run = now.replace(
+                hour=hour,
+                minute=minute,
+                second=0,
+                microsecond=0,
+            )
 
             # If time has passed today, move to next interval
             if next_run <= now:
@@ -249,7 +254,6 @@ class HQ(BaseModel):
                         retry_count + 1,
                         max_retries + 1,
                         str(e),
-                        exc_info=True,
                     )
                     last_error = str(e)
 
@@ -299,7 +303,10 @@ class HQ(BaseModel):
                 await asyncio.sleep(1)
 
             except Exception as e:
-                logger.error("Scheduler loop error: %s", str(e), exc_info=True)
+                logger.error(
+                    "Scheduler loop error: %s",
+                    str(e),
+                )
                 await asyncio.sleep(1)
 
     async def _handle_job_execution(self, job: Job) -> None:
@@ -322,7 +329,6 @@ class HQ(BaseModel):
                 "Error handling job %s execution: %s",
                 job.id,
                 str(e),
-                exc_info=True,
             )
 
     async def start(self) -> None:
@@ -503,7 +509,6 @@ class HQ(BaseModel):
                 logger.error(
                     "Error during execution: %s",
                     str(e),
-                    exc_info=True,
                 )
                 await self.stop()
                 raise

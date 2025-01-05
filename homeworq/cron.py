@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
 
@@ -103,10 +103,10 @@ class CronParser:
             )
 
             if minute_rollover or minute > current.minute:
-                current = current.replace(
-                    minute=minute,
-                    hour=current.hour + (1 if minute_rollover else 0),
-                )
+                # Use timedelta for hour increment to handle rollovers properly
+                if minute_rollover:
+                    current = current + timedelta(hours=1)
+                current = current.replace(minute=minute)
                 continue
 
             hour, hour_rollover = self._get_next_value(
@@ -114,12 +114,12 @@ class CronParser:
             )
 
             if hour_rollover or hour > current.hour:
+                if hour_rollover:
+                    current = current + timedelta(days=1)
                 current = current.replace(
                     minute=self.fields["minute"][0],
                     hour=hour,
                 )
-                if hour_rollover:
-                    current = current.replace(day=current.day + 1)
                 continue
 
             # Check if current day of month and day of week are valid
@@ -127,10 +127,10 @@ class CronParser:
             dow_valid = current.weekday() in self.fields["day_of_week"]
 
             if not (day_valid and dow_valid):
+                current = current + timedelta(days=1)
                 current = current.replace(
                     minute=self.fields["minute"][0],
                     hour=self.fields["hour"][0],
-                    day=current.day + 1,
                 )
                 continue
 

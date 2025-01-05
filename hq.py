@@ -105,4 +105,5 @@ if __name__ == "__main__":
     ]
 
     # Let's go! 🚀
-    HQ.run(settings=settings, defaults=default_jobs)
+    with HQ(settings=settings, defaults=default_jobs) as hq:
+        hq.run_sync()

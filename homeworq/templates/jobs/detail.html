@@ -66,11 +66,9 @@
                     <tr>
                         <td>Options</td>
                         <td>
-                            <ul>
-                                {% for key, value in job.options.model_dump().items() %}
-                                <li><code>{{ key }} = {{ value }}</code></li>
-                                {% endfor %}
-                            </ul>
+                            {% for key, value in job.options.model_dump().items() %}
+                            <p><code>{{ key }} = {{ value }}</code></p>
+                            {% endfor %}
                         </td>
                     </tr>
                 </tbody>
@@ -91,7 +89,7 @@
                     </tr>
                     <tr>
                         <td class="font-medium">Current Schedule</td>
-                        <td id="scheduleType">{{ job.schedule }}</td>
+                        <td id="scheduleType">{{ job.display_schedule() }}</td>
                     </tr>
                     <tr>
                         <td class="font-medium">Next Run</td>

@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from . import models
+from .cron import CronParser
 from .log_config import get_uvicorn_log_config, setup_logging
 from .schemas import Job, JobCreate, Log, Settings, Status, TimeUnit
 from .tasks import execute_task
@@ -84,7 +85,8 @@ class HQ(BaseModel):
         now = datetime.now(timezone.utc)  # Use UTC consistently
 
         if job.schedule_cron:
-            raise NotImplementedError("Cron scheduling not implemented")
+            parser = CronParser(job.schedule_cron)
+            return parser.get_next_run(after=now)
 
         if job.schedule_at:
             # Parse time in UTC
@@ -128,7 +130,11 @@ class HQ(BaseModel):
 
         # Check last execution
         last_execution = (
-            await models.Log.filter(job_id=job.id).order_by("-started_at").first()
+            await models.Log.filter(
+                job_id=job.id,
+            )
+            .order_by("-started_at")
+            .first()
         )
         if not last_execution:
             return True
@@ -142,7 +148,11 @@ class HQ(BaseModel):
             next_run = await self._calculate_next_run(job)
             return now >= next_run
         except Exception as e:
-            logger.error(f"Error calculating next run for job {job.id}: {str(e)}")
+            logger.error(
+                "Error calculating next run for job %d: %s",
+                job.id,
+                str(e),
+            )
             return False
 
     async def _execute_job(self, job: Job) -> Log:
@@ -235,28 +245,32 @@ class HQ(BaseModel):
                     # Calculate sleep time
                     if job.next_run:
                         now = datetime.now(timezone.utc)
-                        sleep_time = max(0, (job.next_run - now).total_seconds())
+                        delta = job.next_run - now
+                        sleep_time = max(0, delta.total_seconds())
                         if sleep_time > 0:
                             await asyncio.sleep(sleep_time)
                     else:
-                        # If we can't determine next run time, use a default interval
+                        # Use a default interval if next_run not set
                         await asyncio.sleep(60)
 
             except Exception as e:
                 logger.error(
-                    f"Job scheduler error for {job.id}: {str(e)}", exc_info=True
+                    "Job scheduler error for %s: %s",
+                    job.id,
+                    str(e),
+                    exc_info=True,
                 )
                 # Add a delay before retrying on error
-                await asyncio.sleep(60)
+                await asyncio.sleep(30)
 
     async def _scheduler_loop(self) -> None:
         """Main scheduler loop that manages all job schedulers."""
         while self._running:
             try:
                 # Get all active jobs
-                jobs = await models.Job.filter(end_date__isnull=True).prefetch_related(
-                    "logs"
-                )
+                jobs = await models.Job.filter(
+                    end_date__isnull=True,
+                ).prefetch_related("logs")
 
                 # Start schedulers for new jobs
                 for job in jobs:
@@ -288,7 +302,7 @@ class HQ(BaseModel):
                 await asyncio.sleep(1)
 
             except Exception as e:
-                logger.error(f"Main scheduler error: {str(e)}", exc_info=True)
+                logger.error("Main scheduler error: %s", str(e), exc_info=True)
                 await asyncio.sleep(1)
 
     async def start(self) -> None:
@@ -298,17 +312,19 @@ class HQ(BaseModel):
 
         # Initialize API server
         if self.settings.api_on:
+            logger.info("Starting API server...")
             self._api = await self._init_api()
             await self._start_api_server()
+
+        # Create default jobs if any
+        logger.info("Creating / updating default jobs...")
+        for job_create in self.defaults:
+            await models.Job.from_schema(job_create, is_default=True)
 
         # Start scheduler
         self._running = True
         self._beat = asyncio.create_task(self._scheduler_loop())
-        logger.info("Task scheduler started")
-
-        # Create default jobs if any
-        for job_create in self.defaults:
-            await models.Job.from_schema(job_create, is_default=True)
+        logger.info("System start completed.")
 
     async def stop(self) -> None:
         """Stop the scheduler and API server."""

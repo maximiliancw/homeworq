@@ -44,12 +44,6 @@ class Job(BaseModel):
         hash_dict = {
             "task": schema.task,
             "params": schema.params,
-            "schedule": (
-                schema.schedule
-                if isinstance(schema.schedule, str)
-                else schema.schedule.model_dump()
-            ),
-            "options": schema.options.model_dump(),
         }
 
         # Create a deterministic JSON string
@@ -69,17 +63,12 @@ class Job(BaseModel):
         if isinstance(schema.schedule, str):
             schedule_dict["schedule_cron"] = schema.schedule
         else:
-            schedule_dict.update(
-                {
-                    "schedule_interval": schema.schedule.interval,
-                    "schedule_unit": schema.schedule.unit,
-                    "schedule_at": schema.schedule.at,
-                }
-            )
+            for k, v in schema.schedule.model_dump().items():
+                schedule_dict[f"schedule_{k}"] = v
 
         if is_default:
             default_hash = cls.create_default_hash(schema)
-            # Try to find existing job by default_hash
+            # Try to find existing default job by its ID
             existing_job = await cls.get_or_none(id=default_hash)
             if existing_job:
                 # Update existing job
@@ -88,8 +77,18 @@ class Job(BaseModel):
                 existing_job.max_retries = schema.options.max_retries
                 existing_job.start_date = schema.options.start_date
                 existing_job.end_date = schema.options.end_date
+
+                # Reset schedule parameters
+                if "schedule_cron" in schedule_dict:
+                    existing_job.schedule_interval = None
+                    existing_job.schedule_unit = None
+                    existing_job.schedule_at = None
+                else:
+                    existing_job.schedule_cron = None
+                # Set new schedule parameters
                 for k, v in schedule_dict.items():
                     setattr(existing_job, k, v)
+                # Save/update job
                 await existing_job.save()
                 return existing_job
 
@@ -129,7 +128,6 @@ class Job(BaseModel):
 
         return JobSchema(
             id=self.id,
-            name=str(self),
             task=get_registered_task(self.task_name),
             params=self.params,
             options=options,
@@ -164,33 +162,6 @@ class Job(BaseModel):
                 self.schedule_at = job_update.schedule.at
 
         await self.save()
-
-    def __str__(self) -> str:
-        """Generate a human-readable name from task name and schedule"""
-        base_name = self.task_name.replace("_", " ").title()
-
-        if self.schedule_cron:
-            return f"Run {base_name} on cron schedule '{self.schedule_cron}'"
-
-        if not (self.schedule_interval and self.schedule_unit):
-            return base_name
-
-        # Handle interval-based schedule
-        interval_str = str(self.schedule_interval)
-        unit_str = self.schedule_unit.value.lower()
-
-        # Make unit plural if interval > 1
-        if self.schedule_interval > 1:
-            unit_str += "s"
-
-        # Build schedule description
-        schedule_str = f"every {interval_str} {unit_str}"
-
-        # Add specific time if provided
-        if self.schedule_at:
-            schedule_str += f" at {self.schedule_at}"
-
-        return f"{base_name} {schedule_str}"
 
 
 class Log(BaseModel):

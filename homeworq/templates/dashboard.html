@@ -48,7 +48,12 @@
                             <tr>
                                 <td><a x-bind:href="`/jobs/${job.id}`" x-text="job.name"></a></td>
                                 <td>
-                                    <pre x-text="JSON.stringify(job.params, null, 2)"></pre>
+                                    <template x-if="Object.keys(job.params).length > 0">
+                                        <pre x-text="JSON.stringify(job.params, null, 2)"></pre>
+                                    </template>
+                                    <template x-if="Object.keys(job.params).length === 0">
+                                        <span>-</span>
+                                    </template>
                                 </td>
                                 <td x-data="{ 
                                     progress: 0,

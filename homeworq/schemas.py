@@ -106,7 +106,7 @@ class JobOptions(BaseModel):
 
 
 class JobBase(BaseModel):
-    params: Dict[str, Any]
+    params: Dict[str, Any] = Field(default_factory=dict)
     options: JobOptions = Field(default_factory=JobOptions)
     schedule: Union[JobSchedule, str]
 
@@ -122,7 +122,8 @@ class JobCreate(JobBase):
         if v in get_registered_tasks():
             return v
         else:
-            raise KeyError(f"Task '{v} is not registered.")
+            keys = list(get_registered_tasks().keys())
+            raise KeyError(f"Task '{v}' is not registered. Available tasks: {keys}")
 
 
 class JobUpdate(JobBase):
@@ -133,7 +134,7 @@ class JobUpdate(JobBase):
 
 class Job(JobBase):
     id: str
-    name: str
+    name: Optional[str] = None
     task: Task
     created_at: datetime
     updated_at: datetime
@@ -141,7 +142,13 @@ class Job(JobBase):
     next_run: Optional[datetime] = None
 
     def __str__(self):
-        return f"Run {self.task.name}({self.params}) every {self.schedule}"
+        t = f"{(self.task.title or self.task.name).title()}"
+        s = self.display_schedule().title()
+        return f"{s}: {t}"
+
+    def model_post_init(self, __context):
+        super().model_post_init(__context)
+        self.name = str(self)
 
     def display_schedule(self) -> str:
         return format_schedule(self.schedule)

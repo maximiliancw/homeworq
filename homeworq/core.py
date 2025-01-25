@@ -27,24 +27,13 @@ class HQ(BaseModel):
     The scheduler is instantiated with settings and optional default jobs,
     making it clear which configuration is being used.
 
-    Can be used either as a context manager or directly:
-
     Example:
-        With context manager:
         ```python
         settings = Settings(api_on=True, db_uri="sqlite://db.sqlite")
         default_jobs = [JobCreate(...)]
 
-        with HQ(settings=settings, defaults=default_jobs) as hq:
-            # Scheduler is running here
-            # Will be automatically stopped when exiting the context
-            ...
-        ```
-
-        Direct usage:
-        ```python
-        hq = HQ(settings=settings, defaults=default_jobs)
-        hq.run()
+        async with HQ(settings=settings, defaults=default_jobs) as hq:
+            await hq.run()  # Starts the scheduler
         ```
 
     Attributes:
@@ -118,12 +107,7 @@ class HQ(BaseModel):
         if job.schedule_at:
             # Parse time in UTC
             hour, minute = map(int, job.schedule_at.split(":"))
-            next_run = now.replace(
-                hour=hour,
-                minute=minute,
-                second=0,
-                microsecond=0,
-            )
+            next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
             # If time has passed today, move to next interval
             if next_run <= now:
@@ -173,11 +157,7 @@ class HQ(BaseModel):
         # Calculate based on last execution
         try:
             last_execution = (
-                await models.Log.filter(
-                    job_id=job.id,
-                )
-                .order_by("-started_at")
-                .first()
+                await models.Log.filter(job_id=job.id).order_by("-started_at").first()
             )
             if not last_execution:
                 return True
@@ -185,11 +165,7 @@ class HQ(BaseModel):
             next_run = await self._calculate_next_run(job)
             return now >= next_run
         except Exception as e:
-            logger.error(
-                "Error calculating next run for job %s: %s",
-                job.id,
-                str(e),
-            )
+            logger.error("Error calculating next run for job %s: %s", job.id, str(e))
             return False
 
     async def _execute_job(self, job: Job) -> Log:
@@ -254,6 +230,7 @@ class HQ(BaseModel):
                         retry_count + 1,
                         max_retries + 1,
                         str(e),
+                        exc_info=True,
                     )
                     last_error = str(e)
 
@@ -286,28 +263,35 @@ class HQ(BaseModel):
         the scheduler is active. It queries for active jobs, checks if
         they are due to run, and executes them in separate tasks.
         """
+        running_tasks = set()
+
         while self._running:
             try:
+                # Clean up completed tasks
+                running_tasks = {task for task in running_tasks if not task.done()}
+
                 # Get all active jobs
-                jobs = await models.Job.filter(
-                    end_date__isnull=True,
-                ).prefetch_related("logs")
+                jobs = await models.Job.filter(end_date__isnull=True).prefetch_related(
+                    "logs"
+                )
 
                 # Check and execute due jobs
                 for job in jobs:
                     if await self._can_run_job(job):
-                        # Execute job in separate task
-                        asyncio.create_task(self._handle_job_execution(job))
+                        # Execute job in separate task and track it
+                        task = asyncio.create_task(self._handle_job_execution(job))
+                        running_tasks.add(task)
 
                 # Small delay before next check
                 await asyncio.sleep(1)
 
             except Exception as e:
-                logger.error(
-                    "Scheduler loop error: %s",
-                    str(e),
-                )
+                logger.error("Scheduler loop error: %s", str(e), exc_info=True)
                 await asyncio.sleep(1)
+
+        # Wait for all running tasks to complete during shutdown
+        if running_tasks:
+            await asyncio.gather(*running_tasks, return_exceptions=True)
 
     async def _handle_job_execution(self, job: Job) -> None:
         """
@@ -326,72 +310,102 @@ class HQ(BaseModel):
 
         except Exception as e:
             logger.error(
-                "Error handling job %s execution: %s",
-                job.id,
-                str(e),
+                "Error handling job %s execution: %s", job.id, str(e), exc_info=True
             )
 
-    async def start(self) -> None:
-        """Start the scheduler and optional API server."""
+    async def _handle_signal(self, sig):
+        """Handle interrupt signals gracefully."""
+        logger.info("Received signal %s. Initiating shutdown...", sig.name)
+        self._running = False
+
+    async def run(self) -> None:
+        """
+        Run the scheduler.
+
+        This method starts the main scheduler loop. It should be called
+        after the HQ instance has been properly initialized (typically
+        within a context manager).
+
+        Example:
+            ```python
+            async with HQ(settings=settings, defaults=default_jobs) as hq:
+                await hq.run()  # Starts the scheduler
+            ```
+        """
         if self._running:
             return
 
-        # Initialize API server if enabled
-        if self.settings.api_on:
-            logger.info("Starting API server...")
-            self._api = await self._init_api()
-            await self._start_api_server()
+        # Set up signal handlers
+        import signal
 
-        # Create default jobs
-        logger.info("Creating/updating default jobs...")
-        for job_create in self.defaults:
-            await models.Job.from_schema(job_create, is_default=True)
+        loop = asyncio.get_event_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(
+                sig, lambda s=sig: asyncio.create_task(self._handle_signal(s))
+            )
 
-        # Start scheduler
         self._running = True
         self._scheduler_task = asyncio.create_task(self._scheduler_loop())
         logger.info("Scheduler started")
+
+        try:
+            # Run until stopped
+            while self._running:
+                await asyncio.sleep(1)
+        finally:
+            await self.stop()
+
+    def run_sync(self) -> None:
+        """
+        Synchronous version of run().
+
+        Example:
+            ```python
+            with HQ(settings=settings, defaults=default_jobs) as hq:
+                hq.run_sync()  # Starts the scheduler
+            ```
+        """
+        loop = asyncio.get_event_loop()
+        try:
+            loop.run_until_complete(self.run())
+        except KeyboardInterrupt:
+            pass
 
     async def stop(self) -> None:
         """Stop the scheduler and API server."""
         if not self._running:
             return
 
+        logger.info("Stopping scheduler...")
         self._running = False
 
         # Cancel scheduler task
         if self._scheduler_task:
-            self._scheduler_task.cancel()
             try:
-                await self._scheduler_task
-            except asyncio.CancelledError:
-                pass
+                await asyncio.wait_for(self._scheduler_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("Forcing scheduler task cancellation...")
+                self._scheduler_task.cancel()
+                try:
+                    await self._scheduler_task
+                except asyncio.CancelledError:
+                    pass
 
         # Stop API server
         if self._api_task:
+            logger.info("Stopping API server...")
             self._api_task.cancel()
             try:
                 await self._api_task
             except asyncio.CancelledError:
                 pass
 
+        # Remove signal handlers
+        loop = asyncio.get_event_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.remove_signal_handler(sig)
+
         logger.info("Scheduler stopped")
-
-    @property
-    def is_running(self) -> bool:
-        """Check if scheduler is running."""
-        return self._running
-
-    async def _init_db(self) -> None:
-        """Initialize database connection."""
-        from tortoise import Tortoise
-
-        await Tortoise.init(
-            db_url=self.settings.db_uri,
-            modules={"models": ["homeworq.models"]},
-            table_name_generator=lambda cls: f"hq_{cls.__name__.lower()}s",
-        )
-        await Tortoise.generate_schemas()
 
     async def __aenter__(self) -> "HQ":
         """
@@ -449,71 +463,13 @@ class HQ(BaseModel):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.__aexit__(exc_type, exc_val, exc_tb))
 
-    async def run(self) -> None:
-        """
-        Run the scheduler.
+    async def _init_db(self) -> None:
+        """Initialize database connection."""
+        from tortoise import Tortoise
 
-        This method starts the main scheduler loop. It should be called
-        after the HQ instance has been properly initialized (typically
-        within a context manager).
-
-        Example:
-            ```python
-            async with HQ(settings=settings, defaults=default_jobs) as hq:
-                await hq.run()  # Starts the scheduler
-            ```
-        """
-        if self._running:
-            return
-
-        self._running = True
-        self._scheduler_task = asyncio.create_task(self._scheduler_loop())
-        logger.info("Scheduler started")
-
-        try:
-            # Run until stopped
-            while self._running:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Shutdown initiated...")
-        finally:
-            await self.stop()
-
-    def run_sync(self) -> None:
-        """
-        Synchronous version of run().
-
-        Example:
-            ```python
-            with HQ(settings=settings, defaults=default_jobs) as hq:
-                hq.run_sync()  # Starts the scheduler
-            ```
-        """
-        loop = asyncio.get_event_loop()
-        try:
-            loop.run_until_complete(self.run())
-        except KeyboardInterrupt:
-            pass
-
-        async def _run_instance() -> None:
-            await self._init_db()
-            await self.start()
-
-            try:
-                while True:
-                    await asyncio.sleep(1)
-            except KeyboardInterrupt:
-                logger.info("Shutdown initiated...")
-                await self.stop()
-            except Exception as e:
-                logger.error(
-                    "Error during execution: %s",
-                    str(e),
-                )
-                await self.stop()
-                raise
-
-        try:
-            asyncio.run(_run_instance())
-        except KeyboardInterrupt:
-            pass
+        await Tortoise.init(
+            db_url=self.settings.db_uri,
+            modules={"models": ["homeworq.models"]},
+            table_name_generator=lambda cls: f"hq_{cls.__name__.lower()}s",
+        )
+        await Tortoise.generate_schemas()

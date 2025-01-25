@@ -46,17 +46,6 @@ async def process_data(
     }
 
 
-@register_task("Example task with errors")
-async def error_task() -> None:
-    """
-    Task that raises an exception.
-
-    Raises:
-        ValueError: Always raises this error
-    """
-    raise NotImplementedError("💩")
-
-
 if __name__ == "__main__":
     # Define settings
     settings = schemas.Settings(
@@ -97,10 +86,6 @@ if __name__ == "__main__":
                 timeout=3600,  # 1 hour timeout
                 max_retries=2,  # Retry up to 2 times
             ),
-        ),
-        schemas.JobCreate(
-            task="error_task",
-            schedule="*/5 * * * *",
         ),
     ]
 

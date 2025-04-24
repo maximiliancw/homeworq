@@ -11,7 +11,7 @@ security = HTTPBasic()
 def get_auth_credentials() -> tuple[str, str]:
     """Get authentication credentials from environment variables."""
     username = os.getenv("HQ_ADMIN_USERNAME", "admin")
-    password = os.getenv("HQ_ADMIN_PASSWORD", "admin")
+    password = os.getenv("HQ_ADMIN_PASSWORD", "password")
     return username, password
 
 

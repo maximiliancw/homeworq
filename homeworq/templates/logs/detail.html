@@ -8,41 +8,41 @@
 {% endblock %}
 
 {% block content %}
-<article>
-    <h2>Log Details</h2>
-    
-    <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+<article>    
+    <header>
+        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2rem;">
+            <h3>
+                <a href="/jobs/{{ log.job.id }}">{{ log.job.name }}</a>
+            </h3>
+            <div>
+                <kbd>{{ log.status.value }}</kbd>
+            </div>
+        </div>
+    </header>
+    <dl style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
         <div>
-            <strong>Job:</strong>
-            <a href="/jobs/{{ log.job.id }}">{{ log.job.name }}</a>
+            <dt><strong>Started At</strong></dt>
+            <dd>{{ log.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
         </div>
         <div>
-            <strong>Status:</strong>
-            {{ log.status }}
+            <dt><strong>Completed At</strong></dt>
+            <dd>{{ log.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
         </div>
         <div>
-            <strong>Started At:</strong>
-            {{ log.started_at.strftime('%Y-%m-%d %H:%M:%S') }}
+            <dt><strong>Duration</strong></dt>
+            <dd>{{ log.duration|round(2) }} seconds</dd>
         </div>
         <div>
-            <strong>Completed At:</strong>
-            {{ log.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}
+            <dt><strong>Retries</strong></dt>
+            <dd>{{ log.retries }}</dd>
         </div>
-        <div>
-            <strong>Duration:</strong>
-            {{ log.duration }} seconds
-        </div>
-        <div>
-            <strong>Retries:</strong>
-            {{ log.retries }}
-        </div>
-    </div>
+    </dl>
 
-    <h3>Result</h3>
+    <h4>Output</h4>
     <pre style="background: var(--code-background); padding: 1rem; border-radius: var(--border-radius); margin: 1rem 0;">{{ log.result }}</pre>
 
     {% if log.error %}
-    <h3>Error Details</h3>
+    <h4>Error Details</h4>
     <pre style="background: var(--mark-background); color: var(--mark-color); padding: 1rem; border-radius: var(--border-radius); margin: 1rem 0;">{{ log.error }}</pre>
     {% endif %}
 </article>

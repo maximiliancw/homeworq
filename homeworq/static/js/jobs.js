@@ -48,7 +48,8 @@ function initJobsTable() {
       },
     ],
     pageLength: 25,
-    order: [[3, "desc"]], // Sort by next_run by default
+    // Sort by next_run by default
+    order: [[3, "desc"]],
     responsive: true,
     stateSave: true,
     stateDuration: 60 * 60 * 24, // 24 hours

@@ -31,6 +31,7 @@ a RESTful interface for consuming/managing tasks, jobs, and logs.
 
 
 async def create_api(hq: HQ) -> FastAPI:
+    """Create a FastAPI app for the given HQ instance."""
     app = FastAPI(
         title="homeworq",
         description=API_DESCRIPTION,

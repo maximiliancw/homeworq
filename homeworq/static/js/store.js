@@ -12,6 +12,14 @@ document.addEventListener("alpine:init", () => {
     },
     notifier: new NotificationManager(),
     loading: false,
+    tableState: {
+      logs: {
+        page: 0,
+        length: 25,
+        search: "",
+        order: [[1, "desc"]]
+      }
+    },
 
     get notifications() {
       return this.notifier.notifications;
@@ -82,10 +90,16 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    async fetchLogs() {
+    async fetchLogs(params = {}) {
       this.loading = true;
       try {
-        const response = await fetch("/api/logs");
+        const queryParams = new URLSearchParams({
+          offset: params.offset || 0,
+          limit: params.limit || 25,
+          ...params
+        });
+        
+        const response = await fetch(`/api/logs?${queryParams}`);
         if (response.ok) {
           this.logs = await response.json();
         }
@@ -124,5 +138,17 @@ document.addEventListener("alpine:init", () => {
         this.loading = false;
       }
     },
+
+    // Table state management
+    saveTableState(tableId, state) {
+      this.tableState[tableId] = {
+        ...this.tableState[tableId],
+        ...state
+      };
+    },
+
+    getTableState(tableId) {
+      return this.tableState[tableId] || {};
+    }
   });
 });

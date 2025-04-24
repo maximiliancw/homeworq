@@ -80,6 +80,43 @@ function formatDate(date) {
   return new Date(date).toLocaleString();
 }
 
+// DataTables utility functions
+function initDataTable(tableId, options = {}) {
+  const defaultOptions = {
+    responsive: true,
+    stateSave: true,
+    stateDuration: 60 * 60 * 24, // 24 hours
+    language: {
+      processing: "Loading...",
+      search: "Search:",
+      lengthMenu: "Show _MENU_ entries",
+      info: "Showing _START_ to _END_ of _TOTAL_ entries",
+      infoEmpty: "Showing 0 to 0 of 0 entries",
+      infoFiltered: "(filtered from _MAX_ total entries)",
+      emptyTable: "No data available in table",
+    }
+  };
+
+  return $(`#${tableId}`).DataTable({
+    ...defaultOptions,
+    ...options
+  });
+}
+
+function handleDataTableError(table, error) {
+  const store = Alpine.store("data");
+  store.loading = false;
+  store.notifier.showNotification(
+    `Error loading table data: ${error}`,
+    "error"
+  );
+  console.error("DataTables error:", error);
+}
+
+function showDetails(model, id) {
+  window.location.href = `/${model}/${id}`;
+}
+
 $(document).ready(async () => {
   const store = Alpine.store("data");
   var path = window.location.pathname;

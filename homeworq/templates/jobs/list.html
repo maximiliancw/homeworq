@@ -4,14 +4,24 @@
 
 {% block page_menu %}
 <div style="display: flex; justify-content: flex-end;">
-    <button onclick="showJobForm()">Add Job</button>
+    <button onclick="showJobForm()" class="primary">Add Job</button>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="table-container">
-    <table id="jobsTable" aria-label="Scheduled Jobs">
+<div class="table-responsive">
+    <table id="jobsTable" class="display nowrap" style="width:100%" aria-label="Scheduled Jobs">
         <thead>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Params</th>
+                <th scope="col">Last Run</th>
+                <th scope="col">Next Run</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
             <tr>
                 <th>Name</th>
                 <th>Params</th>
@@ -19,8 +29,7 @@
                 <th>Next Run</th>
                 <th>Actions</th>
             </tr>
-        </thead>
-        <tbody></tbody>
+        </tfoot>
     </table>
 </div>
 {% endblock %}

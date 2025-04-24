@@ -181,12 +181,12 @@ async def create_api(hq: HQ) -> FastAPI:
         auth: bool = Depends(is_authenticated),
     ):
         """UI route for log details page"""
-        log = await models.Log.get_or_none(id=log_id)
+        log = await models.Log.get_or_none(id=log_id).prefetch_related("job")
         if not log:
             raise HTTPException(404, f"Log #{log_id} not found")
         return templates.TemplateResponse(
             "logs/detail.html",
-            {"request": request, "log": log},
+            {"request": request, "log": await log.to_schema()},
         )
 
     # API Routes

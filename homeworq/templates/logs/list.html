@@ -2,9 +2,19 @@
 {% block title %}Logs{% endblock %}
 
 {% block content %}
-<div class="table-container">
-    <table id="logsTable" aria-label="Job Execution Results">
+<div class="table-responsive">
+    <table id="logsTable" class="display nowrap" style="width:100%" aria-label="Job Execution Results">
         <thead>
+            <tr>
+                <th scope="col">Job</th>
+                <th scope="col">Started At</th>
+                <th scope="col">Duration</th>
+                <th scope="col">Status</th>
+                <th scope="col">Details</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
             <tr>
                 <th>Job</th>
                 <th>Started At</th>
@@ -12,8 +22,7 @@
                 <th>Status</th>
                 <th>Details</th>
             </tr>
-        </thead>
-        <tbody></tbody>
+        </tfoot>
     </table>
 </div>
 {% endblock %}

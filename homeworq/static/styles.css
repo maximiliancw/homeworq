@@ -22,7 +22,7 @@ pre {
   background-color: #f4f4f4; /* Optional: for better visibility */
   border: 1px solid #ddd; /* Optional: to create a styled box */
   overflow: auto; /* Ensures content scrolls instead of breaking the layout */
-  box-sizing: border-box; /* Ensures padding is included in the element’s width */
+  box-sizing: border-box; /* Ensures padding is included in the element's width */
   margin: 0;
   white-space: pre-wrap;
 }
@@ -384,4 +384,100 @@ td > details {
   transform: translateY(-5px);
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
   cursor: pointer;
+}
+
+/* DataTables styles */
+.table-responsive {
+  width: 100%;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dataTables_wrapper {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter {
+  margin-bottom: 1rem;
+}
+
+.dataTables_wrapper .dataTables_length select {
+  min-width: 75px;
+}
+
+.dataTables_wrapper .dataTables_filter input {
+  margin-left: 0.5rem;
+  width: 200px;
+}
+
+.dataTables_wrapper .dataTables_info {
+  padding-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.dataTables_wrapper .dataTables_paginate {
+  padding-top: 1rem;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+  padding: 0.5rem 0.75rem;
+  margin: 0 0.25rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+  border: 1px solid var(--pico-primary);
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: var(--pico-primary-hover);
+  color: var(--pico-primary-inverse);
+  border: 1px solid var(--pico-primary-hover);
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Table cell alignment */
+.dt-body-left {
+  text-align: left;
+}
+
+.dt-body-center {
+  text-align: center;
+}
+
+.dt-body-right {
+  text-align: right;
+}
+
+/* Responsive table styles */
+@media screen and (max-width: 767px) {
+  .dataTables_wrapper .dataTables_length,
+  .dataTables_wrapper .dataTables_filter {
+    text-align: left;
+  }
+
+  .dataTables_wrapper .dataTables_length select {
+    width: 100%;
+  }
+
+  .dataTables_wrapper .dataTables_filter input {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 0.5rem;
+  }
+
+  .dataTables_wrapper .dataTables_info,
+  .dataTables_wrapper .dataTables_paginate {
+    text-align: center;
+  }
 }
